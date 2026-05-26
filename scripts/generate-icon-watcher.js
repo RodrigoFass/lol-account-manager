@@ -1,7 +1,13 @@
 'use strict';
 /**
- * Generates build/icon-watcher.ico and build/icon-watcher.png for the watcher build.
- * Eye icon with teal accent — no external dependencies, Node built-ins only.
+ * Generates build/icon-watcher.ico, build/icon-watcher.png and
+ * src/assets/icons/tray-watcher.png for the watcher build.
+ *
+ * Color scheme matches the app's existing reds:
+ *   ring / accents : #C0392B  (192, 57, 43)  — same as main icon ring
+ *   iris highlight : #E74C3C  (231, 76, 60)  — same as --danger CSS var
+ *
+ * No external dependencies — Node built-ins only.
  */
 
 const fs   = require('fs');
@@ -89,7 +95,7 @@ function drawEyeIcon(size) {
     }
   }
 
-  // ── 2. Teal outer ring ───────────────────────────────────────
+  // ── 2. Red outer ring — #C0392B (192, 57, 43), same as main icon ──
   const ringR = size / 2 - 2;
   const ringW = size * 0.035;
   for (let y = 0; y < size; y++) {
@@ -97,7 +103,7 @@ function drawEyeIcon(size) {
       const d = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
       if (d >= ringR - ringW && d < ringR) {
         const blend = Math.min(1, Math.min(d - (ringR - ringW), ringR - d));
-        setPixel(x, y, 0, 188, 212, Math.round(blend * 220)); // #00BCD4
+        setPixel(x, y, 192, 57, 43, Math.round(blend * 220));
       }
     }
   }
@@ -106,7 +112,7 @@ function drawEyeIcon(size) {
   const eRx = Math.round(82 * sc); // half-width of eye
   const eRy = Math.round(40 * sc); // half-height of eye
 
-  // ── 3a. Dark shadow outline (slightly larger ellipse) ────────
+  // ── 3a. Dark shadow outline (slightly larger ellipse, dark red-black) ──
   const sRx = eRx + Math.round(5 * sc);
   const sRy = eRy + Math.round(5 * sc);
   for (let y = 0; y < size; y++) {
@@ -115,34 +121,36 @@ function drawEyeIcon(size) {
       const ev = (dx * dx) / (sRx * sRx) + (dy * dy) / (sRy * sRy);
       if (ev <= 1.0) {
         const alpha = ev < 0.8
-          ? 190
-          : Math.round(190 * (1 - (ev - 0.8) / 0.2));
-        setPixel(x, y, 0, 28, 38, alpha);
+          ? 200
+          : Math.round(200 * (1 - (ev - 0.8) / 0.2));
+        setPixel(x, y, 22, 4, 4, alpha);
       }
     }
   }
 
-  // ── 3b. Eye whites ───────────────────────────────────────────
+  // ── 3b. Eye whites (very slightly warm to match red theme) ───
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const dx = x - cx, dy = y - cy;
       const ev = (dx * dx) / (eRx * eRx) + (dy * dy) / (eRy * eRy);
       if (ev <= 1.0) {
-        // Slightly bluish-white; edges marginally cooler
         const t     = Math.sqrt(ev);
         const alpha = ev < 0.88
           ? 255
           : Math.round(255 * (1 - (ev - 0.88) / 0.12));
+        // Very pale warm white — barely pink at edges
         setPixel(x, y,
-          Math.round(228 + t * 8),
-          Math.round(232 + t * 5),
-          Math.round(244 + t * 4),
+          Math.round(238 + t * 8),
+          Math.round(228 + t * 4),
+          Math.round(228 + t * 2),
           alpha);
       }
     }
   }
 
-  // ── 4. Iris (teal gradient) ──────────────────────────────────
+  // ── 4. Iris — red gradient ────────────────────────────────────
+  // Center: dark crimson (100, 8, 8)
+  // Edge:   app red #E74C3C (231, 76, 60)
   const iR = Math.round(30 * sc);
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
@@ -152,15 +160,15 @@ function drawEyeIcon(size) {
         const t     = d / iR;
         const alpha = d < iR - 1 ? 255 : Math.round((iR - d) * 255);
         setPixel(x, y,
-          0,
-          Math.round(145 + t * 45),  // 145 → 190
-          Math.round(185 - t * 25),  // 185 → 160
+          Math.round(100 + t * 131),  // 100 → 231
+          Math.round(8   + t * 68),   //   8 → 76
+          Math.round(8   + t * 52),   //   8 → 60
           alpha);
       }
     }
   }
 
-  // ── 4a. Iris radial detail lines ─────────────────────────────
+  // ── 4a. Iris radial detail lines (dark red) ───────────────────
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const dx = x - cx, dy = y - cy;
@@ -171,20 +179,19 @@ function drawEyeIcon(size) {
         const angle = Math.atan2(dy, dx);
         const v     = Math.abs(Math.sin(angle * 14));
         if (v < 0.18) {
-          setPixel(x, y, 0, 80, 120, Math.round(28 * (1 - v / 0.18)));
+          setPixel(x, y, 60, 4, 4, Math.round(30 * (1 - v / 0.18)));
         }
       }
     }
   }
 
-  // ── 4b. Subtle upper-lid shadow on iris ──────────────────────
+  // ── 4b. Upper-lid shadow on iris (adds depth) ─────────────────
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const dx = x - cx, dy = y - cy;
       const d  = Math.sqrt(dx * dx + dy * dy);
       if (d < iR && dy < -Math.round(2 * sc)) {
-        // Fade from top: darkest at very top, gone at middle
-        const shade = Math.round(60 * (-dy / iR));
+        const shade = Math.round(65 * (-dy / iR));
         setPixel(x, y, 0, 0, 0, shade);
       }
     }
@@ -198,12 +205,12 @@ function drawEyeIcon(size) {
       const d  = Math.sqrt(dx * dx + dy * dy);
       if (d < pR) {
         const alpha = d < pR - 1 ? 255 : Math.round((pR - d) * 255);
-        setPixel(x, y, 4, 4, 10, alpha);
+        setPixel(x, y, 4, 2, 2, alpha);
       }
     }
   }
 
-  // ── 6. Specular highlight ─────────────────────────────────────
+  // ── 6. Specular highlight (warm white) ────────────────────────
   const hlX = Math.round(cx - 9 * sc);
   const hlY = Math.round(cy - 9 * sc);
   const hlR = Math.round(7 * sc);
@@ -212,8 +219,8 @@ function drawEyeIcon(size) {
       const dx = x - hlX, dy = y - hlY;
       const d  = Math.sqrt(dx * dx + dy * dy);
       if (d < hlR) {
-        const a = Math.round(215 * (1 - (d / hlR) ** 1.4));
-        setPixel(x, y, 255, 255, 255, a);
+        const a = Math.round(210 * (1 - (d / hlR) ** 1.4));
+        setPixel(x, y, 255, 230, 225, a); // warm white
       }
     }
   }
@@ -235,12 +242,17 @@ function pngToIco(pngBuf) {
 
 // ── Main ──────────────────────────────────────────────────────
 const buildDir = path.join(__dirname, '..', 'build');
+const trayDir  = path.join(__dirname, '..', 'src', 'assets', 'icons');
 fs.mkdirSync(buildDir, { recursive: true });
+fs.mkdirSync(trayDir,  { recursive: true });
 
 const pixels = drawEyeIcon(256);
 const png    = createPng(256, 256, pixels);
 
 fs.writeFileSync(path.join(buildDir, 'icon-watcher.png'), png);
 fs.writeFileSync(path.join(buildDir, 'icon-watcher.ico'), pngToIco(png));
-console.log('✅  build/icon-watcher.ico  (256px embedded PNG)');
-console.log('✅  build/icon-watcher.png  (256px)');
+fs.writeFileSync(path.join(trayDir,  'tray-watcher.png'), png);
+
+console.log('✅  build/icon-watcher.ico       (app icon — 256px)');
+console.log('✅  build/icon-watcher.png       (app icon — 256px)');
+console.log('✅  src/assets/icons/tray-watcher.png  (tray icon — 256px)');

@@ -636,11 +636,16 @@ function createMainWindow() {
 // TRAY
 // ============================================================
 function setupTray() {
-  const iconPath = path.join(__dirname, 'src', 'assets', 'icons', 'tray.png');
-  // Use the file if it exists, otherwise generate a red-circle icon on the fly (Bug 4 fix)
-  const icon = fs.existsSync(iconPath) ? iconPath : createAppIcon();
+  // Pick tray icon based on which build is running.
+  // 'LoL Watcher' build ships src/assets/icons/tray-watcher.png (eye icon).
+  // Main build falls back to tray.png or the generated red-circle (createAppIcon).
+  const isWatcher  = app.getName() === 'LoL Watcher';
+  const trayFile   = isWatcher ? 'tray-watcher.png' : 'tray.png';
+  const iconPath   = path.join(__dirname, 'src', 'assets', 'icons', trayFile);
+  const icon       = fs.existsSync(iconPath) ? iconPath : createAppIcon();
+  const toolTip    = isWatcher ? 'LoL Watcher' : 'LoL Account Manager';
   try { tray = new Tray(icon); } catch { tray = new Tray(nativeImage.createEmpty()); }
-  tray.setToolTip('LoL Account Manager');
+  tray.setToolTip(toolTip);
   tray.on('double-click', () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } });
   updateTrayMenu();
 }
