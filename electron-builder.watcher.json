@@ -1,0 +1,45 @@
+{
+  "appId": "com.lolaccountmanager.watcher",
+  "productName": "LoL Watcher",
+  "copyright": "Copyright © 2025",
+  "icon": "build/icon-watcher.ico",
+  "files": [
+    "main.js",
+    "preload.js",
+    "updater.js",
+    "src/**/*",
+    "package.json",
+    "!src/**/*.map",
+    "!**/.DS_Store"
+  ],
+  "asar": true,
+  "compression": "maximum",
+  "win": {
+    "target": [
+      { "target": "nsis",     "arch": ["x64"] },
+      { "target": "portable", "arch": ["x64"] }
+    ],
+    "icon": "build/icon-watcher.ico",
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "LoL Watcher",
+    "installerLanguages": ["pt_BR"],
+    "language": "1046",
+    "deleteAppDataOnUninstall": false
+  },
+  "portable": {
+    "artifactName": "LoL-Watcher-Portable-${version}.exe"
+  },
+  "artifactName": "${productName}-Setup-${version}.${ext}",
+  "directories": {
+    "output": "dist",
+    "buildResources": "build"
+  },
+  "publish": null
+}
