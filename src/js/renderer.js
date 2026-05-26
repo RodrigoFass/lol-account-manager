@@ -636,9 +636,6 @@ function buildAccountDropdown() {
   const curId = document.getElementById('history-account-select')?.value || '';
 
   optContainer.innerHTML =
-    `<div class="account-select-option ${!curId ? 'selected' : ''}" data-id="" onclick="selectHistoryAccount('')">
-       <span class="sel-placeholder">Selecionar conta...</span>
-     </div>` +
     allAccounts.map(a => `
       <div class="account-select-option ${a.id === curId ? 'selected' : ''}" data-id="${a.id}" onclick="selectHistoryAccount('${a.id}')">
         <span class="sel-icon-wrap">${_selIconHtml(a)}</span>
