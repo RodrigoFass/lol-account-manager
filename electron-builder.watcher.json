@@ -41,5 +41,9 @@
     "output": "dist",
     "buildResources": "build"
   },
-  "publish": null
+  "publish": {
+    "provider": "github",
+    "owner": "rotriguin",
+    "repo": "lol-account-manager"
+  }
 }
