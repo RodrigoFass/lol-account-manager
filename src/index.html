@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' https://ddragon.leagueoflegends.com data:;">
+  <title>LoL Account Manager</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- Titlebar -->
+  <div class="titlebar">
+    <span class="titlebar-title">⚔️ LoL <span>Account</span> Manager</span>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" onclick="electronAPI.window.minimize()" title="Minimizar">─</button>
+      <button class="titlebar-btn" onclick="electronAPI.window.maximize()" title="Maximizar">□</button>
+      <button class="titlebar-btn close" onclick="handleClose()" title="Fechar">✕</button>
+    </div>
+  </div>
+
+  <div class="app-body">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <h1>LoL <span>Account</span><br>Manager</h1>
+        <p>v1.0.0</p>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-item active" data-section="dashboard" onclick="navigate('dashboard')">
+          <span class="icon">📊</span> Contas
+        </div>
+        <div class="nav-item" data-section="history" onclick="navigate('history')">
+          <span class="icon">📈</span> Histórico de Elo
+        </div>
+        <div class="nav-item" data-section="tools" onclick="navigate('tools')">
+          <span class="icon">🔧</span> Ferramentas
+        </div>
+        <div class="nav-item" data-section="settings" onclick="navigate('settings')">
+          <span class="icon">⚙️</span> Configurações
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="api-key-indicator" onclick="navigate('settings')" title="Status da API Key">
+          <div class="dot missing" id="sidebar-dot"></div>
+          <span id="sidebar-api-text">API Key</span>
+        </div>
+        <div style="margin-top:4px">
+          <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;gap:6px;padding:4px 0" onclick="electronAPI.auth.logout()">
+            🚪 Sair
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main-content">
+
+      <!-- API Key banner -->
+      <div class="api-banner" id="api-banner">
+        <span class="banner-icon" id="banner-icon">⚠️</span>
+        <span class="banner-text" id="banner-text"></span>
+        <span class="banner-timer" id="banner-timer"></span>
+        <button class="btn btn-sm btn-primary" onclick="electronAPI.apiKey.openRenewalPage()">Renovar Agora</button>
+        <button class="btn btn-sm btn-secondary" onclick="navigate('settings')">Configurar</button>
+      </div>
+
+      <!-- ======== DASHBOARD ======== -->
+      <section class="section active" id="section-dashboard">
+        <div class="section-header">
+          <h2>📊 Contas</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div class="search-wrapper">
+              <span class="search-icon">🔍</span>
+              <input class="form-input" id="search-input" type="text" placeholder="Buscar conta..." oninput="filterAccounts()" style="width:170px">
+            </div>
+            <select class="form-select" id="filter-queue" onchange="filterAccounts()" style="width:130px" title="Filtrar por fila">
+              <option value="">Todas as Filas</option>
+              <option value="solo">Solo/Duo</option>
+              <option value="flex">Flex</option>
+            </select>
+            <select class="form-select" id="filter-tier" onchange="filterAccounts()" style="width:120px" title="Filtrar por elo">
+              <option value="">Elos</option>
+              <option value="UNRANKED">Sem Rank</option>
+              <option value="IRON">Ferro</option>
+              <option value="BRONZE">Bronze</option>
+              <option value="SILVER">Prata</option>
+              <option value="GOLD">Ouro</option>
+              <option value="PLATINUM">Platina</option>
+              <option value="EMERALD">Esmeralda</option>
+              <option value="DIAMOND">Diamante</option>
+              <option value="MASTER">Mestre</option>
+              <option value="GRANDMASTER">Grão-Mestre</option>
+              <option value="CHALLENGER">Challenger</option>
+            </select>
+            <select class="form-select" id="filter-server" onchange="filterAccounts()" style="width:110px" title="Filtrar por servidor">
+              <option value="">Servidores</option>
+              <option value="BR1">BR1</option>
+              <option value="NA1">NA1</option>
+              <option value="EUW1">EUW</option>
+              <option value="EUNE1">EUNE</option>
+              <option value="LAN">LAN</option>
+              <option value="LAS">LAS</option>
+              <option value="KR">KR</option>
+              <option value="JP1">JP</option>
+            </select>
+            <select class="form-select" id="filter-tag" onchange="filterAccounts()" style="width:110px" title="Filtrar por grupo">
+              <option value="">Tags</option>
+              <option value="Main">Main</option>
+              <option value="Smurf">Smurf</option>
+              <option value="Treino">Treino</option>
+              <option value="Inativa">Inativa</option>
+              <option value="Vigiando">Vigiando</option>
+            </select>
+            <div class="view-toggle" title="Alternar visualização">
+              <button class="view-btn active" id="view-table-btn" onclick="setView('table',this)" title="Tabela">☰</button>
+              <button class="view-btn" id="view-cards-btn" onclick="setView('cards',this)" title="Cards">⊞</button>
+            </div>
+            <button class="btn btn-secondary" id="refresh-all-btn" onclick="refreshAll()" title="Atualizar Todos">⟳</button>
+            <button class="btn btn-primary" onclick="openAddModal()" title="Adicionar Conta">+</button>
+          </div>
+        </div>
+
+        <div class="section-body" style="padding:0">
+          <div id="accounts-empty" class="empty-state" style="display:none">
+            <div class="empty-icon">🎮</div>
+            <h3>Nenhuma conta cadastrada</h3>
+            <p>Adicione suas contas de League of Legends para começar a monitorar o ranking.</p>
+            <button class="btn btn-primary" onclick="openAddModal()" style="margin-top:8px">+ Adicionar Primeira Conta</button>
+          </div>
+
+          <div class="table-wrapper" id="accounts-table-wrapper">
+            <table class="data-table" id="accounts-table">
+              <thead>
+                <tr>
+                  <th style="width:20px;padding:0 6px 0 16px"><input type="checkbox" id="compare-all-cb" class="compare-checkbox" title="Selecionar todas" onchange="toggleCompareAll(this)"></th>
+                  <th style="width:24px"></th>
+                  <th style="width:36px">#</th>
+                  <th>Conta</th>
+                  <th>Servidor</th>
+                  <th>Solo/Duo</th>
+                  <th>Flex</th>
+                  <th>Última Atualização</th>
+                  <th style="width:200px;text-align:right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="accounts-tbody"></tbody>
+            </table>
+          </div>
+          <!-- Cards grid view (shown when view toggle = cards) -->
+          <div id="accounts-cards-wrapper" style="display:none"></div>
+        </div>
+      </section>
+
+      <!-- ======== CHAMPIONS ======== -->
+      <!-- ======== HISTORY ======== -->
+      <section class="section" id="section-history">
+        <div class="section-header">
+          <h2>📈 Histórico de Elo</h2>
+          <!-- Custom account selector (visual layer) -->
+          <div class="account-select-wrapper" id="history-account-dropdown">
+            <button class="account-select-btn" type="button" onclick="toggleAccountDropdown()" id="account-select-trigger">
+              <span class="sel-placeholder">Selecionar conta...</span>
+              <span class="sel-caret">▾</span>
+            </button>
+            <div class="account-select-dropdown" id="account-select-options" style="display:none"></div>
+          </div>
+          <!-- Hidden native select kept for charts.js compatibility (.value is read there) -->
+          <select id="history-account-select" style="display:none" onchange="loadHistory()">
+            <option value="">Selecionar conta...</option>
+          </select>
+        </div>
+        <div class="section-body">
+          <div id="history-empty" class="empty-state">
+            <div class="empty-icon">📈</div>
+            <h3>Selecione uma conta</h3>
+            <p>Escolha uma conta para ver a evolução do elo ao longo do tempo.</p>
+          </div>
+          <div id="history-content" style="display:none">
+
+            <!-- ── Summary stat cards ── -->
+            <div id="history-summary" class="history-summary-row"></div>
+
+            <!-- ── Range controls + chart ── -->
+            <div class="chart-controls" style="margin-bottom:12px">
+              <button class="chart-btn active" onclick="setHistoryRange('week',this)">7 dias</button>
+              <button class="chart-btn" onclick="setHistoryRange('month',this)">30 dias</button>
+              <button class="chart-btn" onclick="setHistoryRange('all',this)">Tudo</button>
+            </div>
+            <div class="card" style="padding:16px;margin-bottom:24px">
+              <div class="chart-container">
+                <canvas id="history-chart"></canvas>
+              </div>
+            </div>
+
+            <!-- ── Timeline ── -->
+            <div class="history-timeline-header">📋 Linha do Tempo</div>
+            <div id="history-timeline" class="history-timeline"></div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ======== TOOLS ======== -->
+      <section class="section" id="section-tools">
+        <div class="section-header">
+          <h2>🔧 Ferramentas Rápidas</h2>
+        </div>
+        <div class="section-body">
+          <div class="tools-grid">
+            <div class="tool-card">
+              <div class="tool-icon">💀</div>
+              <div class="tool-name">Kill Riot Processes</div>
+              <div class="tool-desc">Encerra todos os processos do Riot Client, League Client e LoL Game via taskkill.</div>
+              <button class="btn btn-danger" onclick="runTool('killRiotProcesses',this)">Encerrar Processos</button>
+            </div>
+            <div class="tool-card">
+              <div class="tool-icon">🗑️</div>
+              <div class="tool-name">Clear Client Cache</div>
+              <div class="tool-desc">Remove a pasta de cache CEF do Riot Client para corrigir problemas de interface bugada.</div>
+              <button class="btn btn-secondary" onclick="runTool('clearClientCache',this)">Limpar Cache</button>
+            </div>
+            <div class="tool-card">
+              <div class="tool-icon">🔧</div>
+              <div class="tool-name">Repair Client</div>
+              <div class="tool-desc">Deleta o arquivo lockfile que impede o cliente de abrir quando ele trava.</div>
+              <button class="btn btn-secondary" onclick="runTool('repairClient',this)">Corrigir Lockfile</button>
+            </div>
+            <div class="tool-card">
+              <div class="tool-icon">📁</div>
+              <div class="tool-name">Open Data Folder</div>
+              <div class="tool-desc">Abre a pasta de dados do app no Windows Explorer para acesso rápido aos arquivos.</div>
+              <button class="btn btn-secondary" onclick="runTool('openDataFolder',this)">Abrir Pasta</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======== SETTINGS ======== -->
+      <section class="section" id="section-settings">
+        <div class="section-header">
+          <h2>⚙️ Configurações</h2>
+          <button class="btn btn-primary btn-sm" onclick="saveSettings()">💾 Salvar</button>
+        </div>
+        <div class="section-body">
+
+          <!-- API Key -->
+          <div class="api-key-section">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <h3 style="font-size:15px">🔑 Riot Games API Key</h3>
+              <button class="btn btn-secondary btn-sm" onclick="electronAPI.apiKey.openRenewalPage()">🌐 Portal da Riot</button>
+            </div>
+            <div class="api-key-status-row">
+              <div class="dot missing" id="settings-dot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0"></div>
+              <div style="flex:1">
+                <div class="api-key-timer" id="settings-timer">—</div>
+                <div class="api-key-label" id="settings-status-label">Sem API Key configurada</div>
+                <div class="api-key-last" id="settings-last-saved"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <input type="text" class="form-input" id="api-key-input" placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="flex:1;font-family:monospace;font-size:12px">
+              <button class="btn btn-secondary" id="validate-btn" onclick="validateAndSaveKey()">✅ Validar e Salvar</button>
+            </div>
+            <div style="margin-top:8px">
+              <button class="btn btn-ghost btn-sm" id="test-key-btn" onclick="testStoredApiKey()" style="font-size:11px;color:var(--text-muted)">🔍 Testar Conexão Riot</button>
+            </div>
+            <p style="font-size:11px;color:var(--text-dim);margin-top:6px">
+              A Development Key expira a cada 24h. Obtenha uma em <strong>developer.riotgames.com</strong>
+            </p>
+          </div>
+
+          <!-- Auto-refresh -->
+          <div class="settings-section">
+            <div class="settings-section-title">Atualização Automática</div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Intervalo de Atualização</strong>
+                <span>Com que frequência buscar o ranking das contas</span>
+              </div>
+              <select class="form-select" id="refresh-interval" style="width:140px">
+                <option value="0">Manual</option>
+                <option value="5">5 minutos</option>
+                <option value="15" selected>15 minutos</option>
+                <option value="30">30 minutos</option>
+                <option value="60">1 hora</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Tema -->
+          <div class="settings-section">
+            <div class="settings-section-title">Interface</div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Tema</strong>
+                <span>Aparência do aplicativo</span>
+              </div>
+              <select class="form-select" id="theme-select" style="width:140px" onchange="changeTheme(this.value)">
+                <option value="dark" selected>Escuro</option>
+                <option value="light">Claro</option>
+              </select>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Ao Fechar a Janela</strong>
+                <span>O que fazer ao clicar no X</span>
+              </div>
+              <select class="form-select" id="close-action" style="width:160px">
+                <option value="ask">Perguntar sempre</option>
+                <option value="tray">Minimizar para bandeja</option>
+                <option value="close">Fechar o app</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <div class="settings-section">
+            <div class="settings-section-title">Notificações</div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Subiu de Divisão</strong>
+                <span>Notificar quando uma conta subir de tier</span>
+              </div>
+              <label class="toggle"><input type="checkbox" id="notif-rankUp" onchange="saveNotifSetting('rankUp', this.checked)" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Desceu de Divisão</strong>
+                <span>Notificar quando uma conta descer de tier</span>
+              </div>
+              <label class="toggle"><input type="checkbox" id="notif-rankDown" onchange="saveNotifSetting('rankDown', this.checked)" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Promoção</strong>
+                <span>Notificar quando uma conta entrar em promoção</span>
+              </div>
+              <label class="toggle"><input type="checkbox" id="notif-promo" onchange="saveNotifSetting('promo', this.checked)" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>API Key Expirando</strong>
+                <span>Notificar quando a API Key estiver prestes a expirar</span>
+              </div>
+              <label class="toggle"><input type="checkbox" id="notif-apiKeyExpiring" onchange="saveNotifSetting('apiKeyExpiring', this.checked)" checked><span class="toggle-slider"></span></label>
+            </div>
+          </div>
+
+          <!-- Backup -->
+          <div class="settings-section">
+            <div class="settings-section-title">Backup e Restauração</div>
+            <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:12px">
+              <div class="settings-row-info">
+                <strong>📤 Exportar Backup (.lam)</strong>
+                <span>Exporta todas as contas criptografadas. Pode ser importado em outro computador com sua senha mestra.</span>
+              </div>
+              <div style="display:flex;gap:8px;width:100%">
+                <div class="input-wrapper" style="flex:1">
+                  <input type="password" class="form-input" id="backup-export-pwd" placeholder="Confirme sua senha mestra">
+                  <button type="button" class="input-toggle" onclick="toggleField('backup-export-pwd')">👁</button>
+                </div>
+                <button class="btn btn-secondary" onclick="exportBackup()">📤 Exportar</button>
+              </div>
+            </div>
+            <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:12px">
+              <div class="settings-row-info">
+                <strong>📥 Importar Backup (.lam)</strong>
+                <span>Importa contas de um arquivo de backup. Informe a senha mestra usada no momento da exportação.</span>
+              </div>
+              <div style="display:flex;gap:8px;width:100%">
+                <div class="input-wrapper" style="flex:1">
+                  <input type="password" class="form-input" id="backup-import-pwd" placeholder="Senha usada na exportação">
+                  <button type="button" class="input-toggle" onclick="toggleField('backup-import-pwd')">👁</button>
+                </div>
+                <button class="btn btn-secondary" onclick="importBackup()">📥 Importar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Auto-Update -->
+          <div class="settings-section" id="update-section">
+            <div class="settings-section-title">Atualizações</div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Verificar Atualizações</strong>
+                <span id="update-status-text">Clique para verificar se há uma nova versão disponível.</span>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="checkForUpdates()" id="check-update-btn">🔄 Verificar</button>
+            </div>
+            <div class="settings-row" id="install-update-row" style="display:none">
+              <div class="settings-row-info">
+                <strong>🎉 Nova Versão Disponível!</strong>
+                <span id="update-version-text"></span>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="installUpdate()">⬇️ Instalar e Reiniciar</button>
+            </div>
+            <div class="settings-row" id="download-progress-row" style="display:none">
+              <div class="settings-row-info" style="width:100%">
+                <strong>Baixando atualização...</strong>
+                <div style="margin-top:8px;background:var(--bg-input);border-radius:4px;height:6px;overflow:hidden">
+                  <div id="download-progress-bar" style="height:100%;background:var(--accent-red);width:0%;transition:width 0.3s"></div>
+                </div>
+                <span id="download-progress-text" style="font-size:11px;color:var(--text-dim);margin-top:4px;display:block">0%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Change Password -->
+          <div class="settings-section">
+            <div class="settings-section-title">Segurança</div>
+            <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:12px">
+              <div class="settings-row-info">
+                <strong>Alterar Senha Mestra</strong>
+                <span>Mude a senha que protege seus dados</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%">
+                <input type="password" class="form-input" id="old-pwd" placeholder="Senha atual">
+                <input type="password" class="form-input" id="new-pwd" placeholder="Nova senha">
+                <input type="password" class="form-input" id="confirm-pwd" placeholder="Confirmar nova senha">
+              </div>
+              <button class="btn btn-secondary" onclick="changePassword()">🔒 Alterar Senha</button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- Add/Edit Account Modal -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Adicionar Conta</h3>
+      <button class="btn-icon" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-account-id">
+      <!-- Watch mode toggle — only shown when adding (not editing) -->
+      <div id="watch-mode-row" style="margin-bottom:14px">
+        <label class="watch-mode-toggle">
+          <input type="checkbox" id="f-watch-mode" onchange="toggleWatchMode(this.checked)">
+          👁️ <strong>Monitorar sem credenciais</strong>
+          <span style="margin-left:4px;opacity:0.7">— acompanhe o elo de uma conta sem guardar login/senha</span>
+        </label>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nickname (IGN) *</label>
+          <input type="text" class="form-input" id="f-nickname" placeholder="Ex: karthuzito">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tag * <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--text-dim)">(após o # do Riot ID)</span></label>
+          <input type="text" class="form-input" id="f-tag" placeholder="Ex: BR1  (sem o #)">
+        </div>
+      </div>
+      <div class="form-row credentials-group" id="credentials-group">
+        <div class="form-group">
+          <label class="form-label">Login (usuário Riot) *</label>
+          <input type="text" class="form-input" id="f-login" placeholder="Login da conta Riot" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha *</label>
+          <div class="input-wrapper">
+            <input type="password" class="form-input" id="f-password" placeholder="Senha da conta" autocomplete="new-password">
+            <button type="button" class="input-toggle" onclick="toggleField('f-password')">👁</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Servidor *</label>
+          <select class="form-select" id="f-server">
+            <option value="BR1">BR1 — Brasil</option>
+            <option value="NA1">NA1 — América do Norte</option>
+            <option value="EUW1">EUW — Europa Oeste</option>
+            <option value="EUNE1">EUNE — Europa Norte/Leste</option>
+            <option value="LAN">LAN — América Latina Norte</option>
+            <option value="LAS">LAS — América Latina Sul</option>
+            <option value="KR">KR — Coreia</option>
+            <option value="JP1">JP — Japão</option>
+            <option value="OC1">OCE — Oceania</option>
+            <option value="TR1">TR — Turquia</option>
+            <option value="RU">RU — Rússia</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Grupo / Tag</label>
+          <select class="form-select" id="f-tags">
+            <option value="">Nenhum</option>
+            <option value="Main">Main</option>
+            <option value="Smurf">Smurf</option>
+            <option value="Duo">Duo</option>
+            <option value="Amigo">Amigo</option>
+            <option value="Inativa">Inativa</option>
+            <option value="Vigiando">Vigiando</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas (opcional)</label>
+        <textarea class="form-textarea" id="f-notes" placeholder="Anotações sobre esta conta..."></textarea>
+      </div>
+      <div class="form-group" style="margin-top:6px;border-top:1px solid var(--border);padding-top:10px">
+        <label class="form-label" style="font-size:11px;color:var(--text-muted)">
+          PUUID <span style="font-weight:400;text-transform:none;font-size:10px">(opcional — necessário para Chaves de Desenvolvimento)</span>
+        </label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" class="form-input" id="f-puuid"
+                 placeholder="Cole aqui o PUUID da conta (ver instruções abaixo)"
+                 style="font-size:11px;font-family:monospace;flex:1">
+          <button type="button" class="btn btn-ghost btn-sm" id="lookup-puuid-btn"
+                  onclick="lookupPuuid()" title="Tentar buscar PUUID automaticamente"
+                  style="white-space:nowrap;font-size:11px">🔍 Buscar</button>
+        </div>
+        <p style="font-size:10px;color:var(--text-dim);margin:5px 0 0;line-height:1.5">
+          Se o refresh falhar com "endpoint bloqueado", obtenha o PUUID no
+          <a href="#" onclick="electronAPI.apiKey.openRenewalPage();return false"
+             style="color:var(--accent)">developer.riotgames.com</a>:
+          <br>API Explorer → <strong>ACCOUNT-V1</strong> → GET by-riot-id → Region: <strong>americas</strong> → copie o campo <code>puuid</code>.
+        </p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAccount()">💾 Salvar Conta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Close Dialog -->
+<div id="close-dialog">
+  <div class="close-dialog-box">
+    <h3>Fechar o aplicativo?</h3>
+    <p>O app pode continuar rodando na bandeja do sistema para monitorar seus rankings.</p>
+    <div class="checkbox-row">
+      <input type="checkbox" id="remember-close">
+      <label for="remember-close">Lembrar minha escolha</label>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeApp('tray')">Minimizar para Bandeja</button>
+      <button class="btn btn-danger"    style="flex:1" onclick="closeApp('close')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Compare floating bar -->
+<div id="compare-bar">
+  <span class="compare-count">0 contas selecionadas</span>
+  <button class="btn btn-primary btn-sm" onclick="openCompareModal()">⚖️ Comparar</button>
+  <button class="btn btn-ghost btn-sm" onclick="clearCompare()">✕ Limpar</button>
+</div>
+
+<!-- Compare Modal -->
+<div class="modal-overlay" id="compare-modal">
+  <div class="modal" style="max-width:900px;width:90vw">
+    <div class="modal-header">
+      <h3>⚖️ Comparação de Contas</h3>
+      <button class="btn-icon" onclick="closeModalById('compare-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="compare-modal-body">
+      <!-- populated by JS -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModalById('compare-modal')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<!-- Delete confirmation dialog -->
+<div class="modal-overlay" id="confirm-delete-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3>🗑️ Remover Conta</h3>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-delete-text" style="font-size:14px;color:var(--text-primary);margin:0"></p>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:8px">Esta ação não pode ser desfeita.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModalById('confirm-delete-modal')">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-delete-ok">Remover</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/apiKeyManager.js"></script>
+</body>
+</html>

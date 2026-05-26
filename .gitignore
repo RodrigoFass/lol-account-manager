@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Electron-builder cache
+build/icon.ico
+build/icon.png
+
+# User data (passwords, API keys — never commit)
+data.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+*.suo
+*.user

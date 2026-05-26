@@ -1,0 +1,68 @@
+{
+  "name": "lol-account-manager",
+  "version": "1.0.0",
+  "description": "Gerencie suas contas de League of Legends com segurança",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "generate-icon": "node scripts/generate-icon.js",
+    "build": "node scripts/generate-icon.js && electron-builder --win",
+    "build:installer": "node scripts/generate-icon.js && electron-builder --win --config.win.target=nsis",
+    "build:portable": "node scripts/generate-icon.js && electron-builder --win --config.win.target=portable"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "electron-updater": "^6.8.3"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.lolaccountmanager.app",
+    "productName": "LoL Account Manager",
+    "copyright": "Copyright © 2025",
+    "icon": "build/icon.ico",
+    "files": [
+      "main.js",
+      "preload.js",
+      "updater.js",
+      "src/**/*",
+      "package.json",
+      "!src/**/*.map",
+      "!**/.DS_Store"
+    ],
+    "asar": true,
+    "compression": "maximum",
+    "win": {
+      "target": [
+        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LoL Account Manager",
+      "installerLanguages": ["pt_BR"],
+      "language": "1046",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "LoL-Account-Manager-Portable-${version}.exe"
+    },
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "publish": null
+  },
+  "author": "",
+  "license": "ISC"
+}

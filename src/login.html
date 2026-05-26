@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
+  <title>LoL Account Manager</title>
+  <style>
+    :root {
+      --bg: #0a0a1a;
+      --card: #12122a;
+      --input: #1a1a35;
+      --border: #252548;
+      --text: #e0e0f0;
+      --muted: #8888aa;
+      --dim: #555577;
+      --red: #c0392b;
+      --red-h: #e74c3c;
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .titlebar {
+      height: 32px;
+      -webkit-app-region: drag;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 8px;
+      background: #0d0d20;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .titlebar button {
+      -webkit-app-region: no-drag;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .titlebar button:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+    .titlebar .close-btn:hover { background: var(--red); color: white; }
+
+    .main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 50% 0%, rgba(192,57,43,0.08) 0%, transparent 60%);
+    }
+
+    .card {
+      width: 380px;
+      padding: 40px 36px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo .emblem {
+      font-size: 42px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .logo h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .logo h1 span { color: var(--red); }
+
+    .logo p {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .form-group { margin-bottom: 16px; }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .input-wrap { position: relative; }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 40px 10px 12px;
+      background: var(--input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 2px rgba(192,57,43,0.2);
+    }
+
+    .toggle-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--dim);
+      cursor: pointer;
+      font-size: 17px;
+      padding: 2px;
+      line-height: 1;
+    }
+    .toggle-btn:hover { color: var(--muted); }
+
+    #error-msg {
+      display: none;
+      background: rgba(231,76,60,0.1);
+      border: 1px solid rgba(231,76,60,0.3);
+      color: #e74c3c;
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    #error-msg.show { display: block; }
+
+    .submit-btn {
+      width: 100%;
+      padding: 11px;
+      background: var(--red);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: inherit;
+      margin-top: 4px;
+    }
+
+    .submit-btn:hover:not(:disabled) { background: var(--red-h); }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .setup-note {
+      margin-top: 16px;
+      padding: 10px 12px;
+      background: rgba(243,156,18,0.08);
+      border: 1px solid rgba(243,156,18,0.2);
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: #f39c12;
+      line-height: 1.5;
+    }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hint { font-size: 11px; color: var(--dim); margin-top: 6px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <button class="close-btn" onclick="window.electronAPI.window.close()">✕</button>
+  </div>
+
+  <div class="main">
+    <div class="card">
+      <div class="logo">
+        <div class="emblem">⚔️</div>
+        <h1>LoL <span>Account</span> Manager</h1>
+        <p id="subtitle">Insira sua senha para continuar</p>
+      </div>
+
+      <div id="error-msg"></div>
+
+      <form id="auth-form">
+        <div class="form-group">
+          <label class="form-label" for="password" id="pwd-label">Senha</label>
+          <div class="input-wrap">
+            <input type="password" id="password" class="form-input" placeholder="••••••••" autocomplete="current-password" required>
+            <button type="button" class="toggle-btn" onclick="togglePwd('password')">👁</button>
+          </div>
+        </div>
+
+        <div class="form-group" id="confirm-group" style="display:none">
+          <label class="form-label">Confirmar Senha</label>
+          <div class="input-wrap">
+            <input type="password" id="confirm-password" class="form-input" placeholder="••••••••">
+            <button type="button" class="toggle-btn" onclick="togglePwd('confirm-password')">👁</button>
+          </div>
+        </div>
+
+        <div id="setup-note" class="setup-note" style="display:none">
+          🔐 Esta será sua senha. Guarde-a com segurança — não há como recuperá-la.
+        </div>
+
+        <div id="error-msg" style="display:none"></div>
+
+        <button type="submit" class="submit-btn" id="submit-btn">
+          <span id="btn-text">Desbloquear</span>
+        </button>
+      </form>
+
+      <p class="hint" id="hint-text"></p>
+    </div>
+  </div>
+
+  <script>
+    const api = window.electronAPI;
+    let isSetup = false;
+
+    async function init() {
+      isSetup = await api.auth.isSetup();
+      if (!isSetup) {
+        document.getElementById('subtitle').textContent   = 'Configure sua senha para começar';
+        document.getElementById('pwd-label').textContent  = 'Nova Senha';
+        document.getElementById('confirm-group').style.display = '';
+        document.getElementById('setup-note').style.display    = '';
+        document.getElementById('btn-text').textContent  = 'Criar Senha e Entrar';
+        document.getElementById('hint-text').textContent = 'Primeira execução — crie uma senha para proteger seus dados';
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function hideError() {
+      const el = document.getElementById('error-msg');
+      el.style.display = 'none';
+    }
+
+    function setLoading(on) {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = on;
+      btn.innerHTML = on
+        ? '<div class="spinner"></div>'
+        : `<span id="btn-text">${isSetup ? 'Desbloquear' : 'Criar Senha e Entrar'}</span>`;
+    }
+
+    function togglePwd(id) {
+      const el = document.getElementById(id);
+      el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    document.getElementById('auth-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      hideError();
+      const pwd  = document.getElementById('password').value;
+      if (!pwd) { showError('Insira a senha.'); return; }
+
+      if (!isSetup) {
+        const confirm = document.getElementById('confirm-password').value;
+        if (pwd.length < 6) { showError('A senha deve ter pelo menos 6 caracteres.'); return; }
+        if (pwd !== confirm) { showError('As senhas não coincidem.'); return; }
+      }
+
+      setLoading(true);
+
+      try {
+        let result;
+        if (!isSetup) {
+          result = await api.auth.setup(pwd);
+        } else {
+          result = await api.auth.login(pwd);
+        }
+
+        if (result.success) {
+          await api.app.openMain();
+        } else {
+          showError(result.error || 'Erro ao autenticar.');
+          setLoading(false);
+        }
+      } catch (err) {
+        showError('Erro inesperado. Tente novamente.');
+        setLoading(false);
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
