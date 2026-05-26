@@ -1031,12 +1031,12 @@ tr.drag-over { background: rgba(192,57,43,0.08) !important; outline: 2px dashed 
   display: block;
 }
 .sel-icon-fallback {
-  width: 32px !important;
-  height: 32px !important;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
-  display: flex !important;
+  display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
