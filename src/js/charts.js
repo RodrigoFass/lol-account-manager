@@ -19,6 +19,8 @@ let historyChart          = null;
 let historyRange          = 'week';
 let historyQueue          = 'solo';  // 'solo' | 'flex'
 let currentHistoryAccount = null;
+let _chartData            = [];      // module-level ref — tooltip callbacks always read fresh data
+let _lastChartAccountId   = null;    // track last rendered account for update vs recreate
 
 // ── Public entry points ───────────────────────────────────────
 
@@ -207,7 +209,9 @@ function renderHistorySummary(account, data) {
 function buildHistoryChart(account, data) {
   const canvas = document.getElementById('history-chart');
   if (!canvas) return;
-  if (historyChart) { historyChart.destroy(); historyChart = null; }
+
+  // Always update module-level reference so tooltip callbacks get fresh data
+  _chartData = data;
 
   const labels = data.map(h => {
     const d = new Date(h.timestamp);
@@ -215,17 +219,43 @@ function buildHistoryChart(account, data) {
   });
   const values = data.map(entryScore);
 
-  // Y-axis bounds with minimum visible range of 3 divisions
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
   const pad    = Math.max(0, (300 - (rawMax - rawMin)) / 2);
   const yMin   = Math.max(0, Math.floor((rawMin - pad - 50) / 100) * 100);
   const yMax   = Math.ceil((rawMax + pad + 50) / 100) * 100;
 
-  // Line color = tier of the most recent data point
   const tierColor = TIER_CHART_COLORS[data[data.length - 1].tier] || '#c0392b';
+  const ptColors  = values.map((v, i) =>
+    i === 0             ? tierColor
+    : v > values[i - 1] ? '#2ecc71'
+    : v < values[i - 1] ? '#e74c3c'
+    :                      tierColor
+  );
+  const chartLabel = `${account.nickname}#${account.tag} — ${historyQueue === 'flex' ? 'Flex' : 'Solo/Duo'}`;
 
-  // Theme-aware palette
+  // ── Fast path: same account — update data in-place (no flicker, no DOM recreate) ──
+  const isSameAccount = historyChart && account.id === _lastChartAccountId;
+  if (isSameAccount) {
+    const ds                        = historyChart.data.datasets[0];
+    historyChart.data.labels        = labels;
+    ds.data                         = values;
+    ds.label                        = chartLabel;
+    ds.borderColor                  = tierColor;
+    ds.backgroundColor              = tierColor + '1a';
+    ds.pointBackgroundColor         = ptColors;
+    ds.pointBorderColor             = ptColors;
+    ds.pointRadius                  = data.length <= 30 ? 4 : 2;
+    historyChart.options.scales.y.min = yMin;
+    historyChart.options.scales.y.max = yMax;
+    historyChart.update('active');
+    return;
+  }
+
+  // ── Slow path: new account or first render — recreate with full config ──
+  if (historyChart) { historyChart.destroy(); historyChart = null; }
+  _lastChartAccountId = account.id;
+
   const light = document.body.classList.contains('theme-light');
   const tc = {
     text:     light ? '#6c7a8c' : '#8888aa',
@@ -236,23 +266,15 @@ function buildHistoryChart(account, data) {
     ttBody:   light ? '#6c7a8c' : '#8888aa',
   };
 
-  // Per-point colors: green = gain, red = loss, tier color = neutral/first
-  const ptColors = values.map((v, i) =>
-    i === 0             ? tierColor
-    : v > values[i - 1] ? '#2ecc71'
-    : v < values[i - 1] ? '#e74c3c'
-    :                      tierColor
-  );
-
   historyChart = new Chart(canvas, {
     type: 'line',
     data: {
       labels,
       datasets: [{
-        label:                `${account.nickname}#${account.tag} — ${historyQueue === 'flex' ? 'Flex' : 'Solo/Duo'}`,
+        label:                chartLabel,
         data:                 values,
         borderColor:          tierColor,
-        backgroundColor:      tierColor + '1a',   // ~10% opacity fill
+        backgroundColor:      tierColor + '1a',
         borderWidth:          2.5,
         pointBackgroundColor: ptColors,
         pointBorderColor:     ptColors,
@@ -275,26 +297,25 @@ function buildHistoryChart(account, data) {
           bodyColor:       tc.ttBody,
           padding:         10,
           callbacks: {
+            // Callbacks reference _chartData (module-level) so they always use current data
             title: ctx => {
-              const d  = new Date(data[ctx[0].dataIndex].timestamp);
+              const d  = new Date(_chartData[ctx[0].dataIndex].timestamp);
               const wd = d.toLocaleDateString('pt-BR', { weekday: 'short' });
               const dt = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
               const tm = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
               return `${wd}, ${dt} — ${tm}`;
             },
             label: ctx => {
-              const h = data[ctx.dataIndex];
+              const h = _chartData[ctx.dataIndex];
               return ` ${rankLabel(h)} — ${h.lp} LP`;
             },
             afterLabel: ctx => {
               if (ctx.dataIndex === 0) return null;
-              const curr = data[ctx.dataIndex];
-              const prev = data[ctx.dataIndex - 1];
-              // Rank changed → show promotion/demotion path
+              const curr = _chartData[ctx.dataIndex];
+              const prev = _chartData[ctx.dataIndex - 1];
               if (curr.tier !== prev.tier || curr.division !== prev.division) {
                 return ` ${rankLabel(prev)} → ${rankLabel(curr)}`;
               }
-              // Pure LP change
               const lp = (curr.lp || 0) - (prev.lp || 0);
               if (lp === 0) return ' → sem alteração';
               return lp > 0 ? ` ▲ +${lp} LP` : ` ▼ ${Math.abs(lp)} LP`;

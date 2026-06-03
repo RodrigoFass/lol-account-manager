@@ -216,11 +216,17 @@ function readData() {
 }
 
 function writeData(data) {
+  // Atomic write: write to .tmp then rename — prevents file corruption on crash/power loss.
+  // If the process dies between writeFileSync and renameSync the original file is untouched.
+  const tmp = DATA_PATH + '.tmp';
   try {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tmp, DATA_PATH);
     return true;
   } catch (e) {
     console.error('writeData:', e.message);
+    // Clean up orphaned .tmp file if it exists
+    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {}
     push('notification', { type: 'error', message: 'Falha ao salvar dados no disco: ' + e.message });
     return false;
   }

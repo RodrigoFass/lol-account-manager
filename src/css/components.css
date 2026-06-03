@@ -468,6 +468,23 @@ tr.drag-over {
 }
 .api-key-activation-notice strong { color: #fbbf24; }
 
+/* Machine-ID encryption warning */
+.machine-key-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.18);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  width: 100%;
+  margin-bottom: 0;
+}
+.machine-key-notice strong { color: var(--text-primary); font-weight: 600; }
+
 /* =============================================
    RANK CELL
    ============================================= */

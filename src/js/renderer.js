@@ -1089,5 +1089,10 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ── Logout confirmation ───────────────────────────────────────
+function confirmLogout() {
+  openModal('confirm-logout-modal');
+}
+
 // Bootstrap
 document.addEventListener('DOMContentLoaded', init);

@@ -50,7 +50,7 @@
           <span id="sidebar-api-text">API Key</span>
         </div>
         <div style="margin-top:4px">
-          <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;gap:6px;padding:4px 0" onclick="electronAPI.auth.logout()">
+          <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;gap:6px;padding:4px 0" onclick="confirmLogout()">
             🚪 Sair
           </button>
         </div>
@@ -433,6 +433,19 @@
           <!-- Change Password -->
           <div class="settings-section">
             <div class="settings-section-title">Segurança</div>
+            <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:0;padding-bottom:0">
+              <div class="machine-key-notice">
+                <span style="font-size:15px;flex-shrink:0">🔐</span>
+                <div>
+                  <strong>Seus dados estão vinculados a este computador.</strong>
+                  A chave de criptografia é derivada do hardware desta máquina. Se você
+                  <strong>trocar o computador, reinstalar o Windows ou mudar o hostname</strong>,
+                  os dados armazenados localmente se tornarão <strong>irrecuperáveis</strong>.
+                  <br><span style="margin-top:5px;display:block">
+                  ✅ Mantenha sempre um <strong>backup .lam</strong> atualizado em Backup e Restauração acima.</span>
+                </div>
+              </div>
+            </div>
             <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:12px">
               <div class="settings-row-info">
                 <strong>Alterar Senha Mestra</strong>
@@ -596,6 +609,22 @@
 </div>
 
 <!-- Toast container -->
+<!-- Logout confirmation dialog -->
+<div class="modal-overlay" id="confirm-logout-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header"><h3>🚪 Sair da sessão</h3></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-secondary)">
+        Tem certeza que deseja sair? Você precisará digitar sua senha mestra para voltar.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModalById('confirm-logout-modal')">Cancelar</button>
+      <button class="btn btn-danger" onclick="closeModalById('confirm-logout-modal');electronAPI.auth.logout()">Sair</button>
+    </div>
+  </div>
+</div>
+
 <!-- Delete confirmation dialog -->
 <div class="modal-overlay" id="confirm-delete-modal">
   <div class="modal" style="max-width:400px">
