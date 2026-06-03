@@ -1094,6 +1094,15 @@ ipcMain.handle('window:close',    () => app.quit());   // fully quit + destroy t
 ipcMain.handle('window:hide',     () => mainWindow?.hide());
 ipcMain.handle('window:show',     () => { mainWindow?.show(); mainWindow?.focus(); });
 
+// — Startup with Windows —
+ipcMain.handle('startup:get', () => ({
+  openAtLogin: app.getLoginItemSettings().openAtLogin,
+}));
+ipcMain.handle('startup:set', (_, { openAtLogin }) => {
+  app.setLoginItemSettings({ openAtLogin });
+  return { success: true };
+});
+
 ipcMain.handle('app:openMain', () => {
   createMainWindow();
   const data = readData();

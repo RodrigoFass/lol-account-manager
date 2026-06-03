@@ -781,6 +781,17 @@ async function loadSettingsUI() {
   el('notif-rankDown').checked       = s.notifications?.rankDown       ?? true;
   el('notif-promo').checked          = s.notifications?.promo          ?? true;
   el('notif-apiKeyExpiring').checked = s.notifications?.apiKeyExpiring ?? true;
+  // Startup toggle — read directly from OS registry via main process
+  const startup = await api.startup.get();
+  el('startup-toggle').checked = startup.openAtLogin;
+}
+
+async function saveStartupSetting(value) {
+  await api.startup.set(value);
+  showToast(
+    value ? '✅ App configurado para iniciar com o Windows.' : 'Inicialização automática desativada.',
+    'success', 3000
+  );
 }
 
 async function saveSettings() {

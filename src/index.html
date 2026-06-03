@@ -324,6 +324,16 @@
                 <option value="close">Fechar o app</option>
               </select>
             </div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Iniciar com o Windows</strong>
+                <span>Abrir automaticamente quando o Windows iniciar</span>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="startup-toggle" onchange="saveStartupSetting(this.checked)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
 
           <!-- Notifications -->

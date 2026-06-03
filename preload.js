@@ -63,6 +63,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     check:   ()  => ipcRenderer.invoke('update:check'),
     install: ()  => ipcRenderer.invoke('update:install'),
   },
+  startup: {
+    get: ()             => ipcRenderer.invoke('startup:get'),
+    set: (openAtLogin)  => ipcRenderer.invoke('startup:set', { openAtLogin }),
+  },
   on:  (ch, fn) => {
     const valid = ['rankUpdate','apiKeyStatus','notification','closeRequest','navigate','update:status','update:progress'];
     if (valid.includes(ch)) ipcRenderer.on(ch, (_, ...args) => fn(...args));
