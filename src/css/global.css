@@ -3,14 +3,15 @@
    ============================================= */
 :root {
   /* ── Backgrounds ─────────────────────────────
-     Base: #160D1B — dark violet/purple            */
-  --bg-primary:   #160D1B;
-  --bg-sidebar:   #100A14;
-  --bg-card:      #1C1124;
-  --bg-input:     #22162C;
-  --bg-hover:     #281A34;
-  --bg-selected:  #312040;
-  --bg-elevated:  #1E1228;
+     Cool-neutral dark — linear / vercel inspired.
+     Subtle blue-cool tint without heavy purple.    */
+  --bg-primary:   #0c0c10;
+  --bg-sidebar:   #080809;
+  --bg-card:      #111116;
+  --bg-input:     #18181e;
+  --bg-hover:     #1e1e26;
+  --bg-selected:  #26263a;
+  --bg-elevated:  #16161c;
 
   /* ── Text hierarchy ──────────────────────────  */
   --text-primary:   #f0f0f4;
