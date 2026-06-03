@@ -635,7 +635,7 @@ function createLoginWindow() {
 function createMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
   mainWindow = new BrowserWindow({
-    width: 1380, height: 750, minWidth: 1100, minHeight: 600, center: true, frame: false,
+    width: 1610, height: 740, minWidth: 1100, minHeight: 600, center: true, frame: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
