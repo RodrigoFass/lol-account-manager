@@ -2,7 +2,7 @@
 
 const {
   app, BrowserWindow, ipcMain, Tray, Menu,
-  globalShortcut, clipboard, shell, nativeImage, Notification, dialog, net
+  globalShortcut, clipboard, shell, nativeImage, Notification, dialog, net, powerMonitor
 } = require('electron');
 
 // net.fetch uses Chromium's network stack (honours system proxy, avoids undici quirks)
@@ -1094,6 +1094,12 @@ app.whenReady().then(() => {
   setupTray();
   createLoginWindow();
   setInterval(checkApiKeyExpiry, 60 * 60 * 1000);
+
+  // Re-push API key status when system resumes from sleep/hibernate or screen unlock.
+  // This triggers the renderer to recalculate the countdown from the real timestamp,
+  // preventing the timer from showing stale/drifted values after the system wakes up.
+  powerMonitor.on('resume',        () => { if (isLoggedIn) push('apiKeyStatus', apiKeyStatus()); });
+  powerMonitor.on('unlock-screen', () => { if (isLoggedIn) push('apiKeyStatus', apiKeyStatus()); });
 
   // Auto-update: inicializa e verifica 8s após o start (para não travar o boot)
   updater.setupUpdater(push);

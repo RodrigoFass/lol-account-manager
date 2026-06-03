@@ -262,7 +262,11 @@
                 <div class="api-key-last" id="settings-last-saved"></div>
               </div>
             </div>
-            <div style="display:flex;gap:8px;margin-top:12px">
+            <div class="api-key-activation-notice">
+              <span style="font-size:15px;flex-shrink:0;margin-top:1px">⏱️</span>
+              <span>Após gerar uma nova chave no portal da Riot, aguarde <strong>~2 minutos</strong> antes de usá-la. Chaves recém-criadas podem retornar erros temporários até serem ativadas pelos servidores.</span>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
               <input type="text" class="form-input" id="api-key-input" placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="flex:1;font-family:monospace;font-size:12px">
               <button class="btn btn-secondary" id="validate-btn" onclick="validateAndSaveKey()">✅ Validar e Salvar</button>
             </div>

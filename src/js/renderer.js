@@ -58,7 +58,11 @@ function setupEventListeners() {
     updateAccountSelects();
   });
 
-  api.on('apiKeyStatus', status => updateApiKeyUI(status));
+  // Resync UI + restart countdown (handles powerMonitor resume and key renewal)
+  api.on('apiKeyStatus', status => {
+    updateApiKeyUI(status);
+    startCountdown(status);
+  });
 
   api.on('notification', ({ type, message }) => {
     const t = type.includes('rank') ? (type === 'rankUp' ? 'success' : 'error') : 'warning';
@@ -570,7 +574,20 @@ async function refreshOne(id, btn) {
       type     = 'error';
       duration = 7000;
     } else {
-      msg      = res.error || 'Erro ao atualizar.';
+      // Strip internal "STEP:endpoint → " prefix before showing to user
+      let raw = (res.error || '').replace(/^STEP:\S+ → /, '');
+      if (!raw || raw.length < 5) {
+        raw = 'Não foi possível obter os dados da conta.';
+      } else if (/erro de rede|sem conex|failed to fetch/i.test(raw)) {
+        raw = 'Sem conexão com a internet. Verifique sua rede e tente novamente.';
+      } else if (/404|não encontrado|not found/i.test(raw)) {
+        raw = 'Conta não encontrada na Riot API. Verifique o nickname, a tag e o servidor.';
+      } else if (/429/i.test(raw)) {
+        raw = 'Limite de requisições atingido. Aguarde alguns segundos e tente novamente.';
+      } else if (/50[0-9]/i.test(raw)) {
+        raw = 'Servidores da Riot indisponíveis no momento. Tente novamente em alguns minutos.';
+      }
+      msg      = raw;
       type     = 'error';
       duration = 8000;
     }

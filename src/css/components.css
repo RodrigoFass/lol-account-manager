@@ -418,6 +418,22 @@ tr.drag-over { background: rgba(192,57,43,0.08) !important; outline: 2px dashed 
 .api-key-label { font-size: 12px; color: var(--text-muted); }
 .api-key-last  { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
 
+/* Activation delay notice */
+.api-key-activation-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: rgba(255, 193, 7, 0.07);
+  border: 1px solid rgba(255, 193, 7, 0.22);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 12px;
+  line-height: 1.55;
+}
+.api-key-activation-notice strong { color: #FFC107; }
+
 /* ── Rank cell (Solo/Duo and Flex — shared layout) ── */
 .rank-cell        { min-width: 170px; }
 
