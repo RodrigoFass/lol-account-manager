@@ -142,11 +142,12 @@ let tray           = null;
 let encryptionKey  = null;
 let ddVersion      = null;   // cached Data Dragon version for profile icons
 let loginAttempts  = 0;
-let lockoutUntil   = 0;
+let lockoutUntil   = 0;      // loaded from disk on startup — survives restarts
 let refreshTimer   = null;
 let clipboardTimer = null;
 let isLoggedIn     = false;
 let DATA_PATH;
+const refreshingAccounts = new Set(); // IDs currently being refreshed — prevents race conditions
 
 // ============================================================
 // CRYPTO HELPERS
@@ -195,6 +196,8 @@ const DEFAULT_DATA = () => ({
   encryptionSalt: null,
   apiKey: null,
   apiKeySavedAt: null,
+  loginAttempts: 0,
+  lockoutUntil:  0,   // persisted so lockout survives app restarts
   settings: {
     refreshInterval: 15,
     theme: 'dark',
@@ -213,8 +216,14 @@ function readData() {
 }
 
 function writeData(data) {
-  try { fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), 'utf8'); }
-  catch (e) { console.error('writeData:', e.message); }
+  try {
+    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('writeData:', e.message);
+    push('notification', { type: 'error', message: 'Falha ao salvar dados no disco: ' + e.message });
+    return false;
+  }
 }
 
 // ============================================================
@@ -282,7 +291,7 @@ function updateAccount(id, u) {
   const data = readData();
   const a = data.accounts.find(x => x.id === id);
   if (!a) return false;
-  const fields = ['nickname','tag','server','tags','notes','puuid','summonerId','profileIconId','currentRank','flexRank','champions','history','lastUpdated'];
+  const fields = ['nickname','tag','server','tags','notes','puuid','summonerId','profileIconId','currentRank','flexRank','champions','history','flexHistory','lastUpdated'];
   fields.forEach(f => {
     if (u[f] !== undefined) {
       // Strip leading '#' from tag on update too  (Bug 1 fix)
@@ -700,9 +709,21 @@ ipcMain.handle('auth:login', async (_, pwd) => {
   if (lockoutUntil > now) return { success: false, error: `Bloqueado por ${Math.ceil((lockoutUntil - now) / 1000)}s` };
   try {
     const ok = await verifyPassword(pwd);
-    if (ok) { loginAttempts = 0; return { success: true }; }
+    if (ok) {
+      loginAttempts = 0;
+      lockoutUntil  = 0;
+      // Clear persisted lockout so restart doesn't re-apply it on a successful login
+      const d = readData(); d.loginAttempts = 0; d.lockoutUntil = 0; writeData(d);
+      return { success: true };
+    }
     loginAttempts++;
-    if (loginAttempts >= MAX_LOGIN_ATTEMPTS) { lockoutUntil = now + LOCKOUT_MS; loginAttempts = 0; return { success: false, error: 'Bloqueado por 5 minutos.' }; }
+    if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+      lockoutUntil  = now + LOCKOUT_MS;
+      loginAttempts = 0;
+      const d = readData(); d.lockoutUntil = lockoutUntil; d.loginAttempts = 0; writeData(d);
+      return { success: false, error: 'Bloqueado por 5 minutos.' };
+    }
+    const d = readData(); d.loginAttempts = loginAttempts; writeData(d);
     return { success: false, error: `Senha incorreta. ${MAX_LOGIN_ATTEMPTS - loginAttempts} tentativas restantes.` };
   } catch (e) { return { success: false, error: e.message }; }
 });
@@ -756,19 +777,20 @@ ipcMain.handle('accounts:getCredentials',(_, id)     => isLoggedIn ? getCredenti
 // — Riot API —
 ipcMain.handle('riot:fetchRanking', async (_, id) => {
   if (!isLoggedIn) return { success: false, error: 'Não autenticado' };
+  // Prevent concurrent refreshes of the same account (race condition → history entry loss)
+  if (refreshingAccounts.has(id)) return { success: false, error: 'Atualização já em andamento para esta conta.' };
+  refreshingAccounts.add(id);
   try {
     const rankData = await refreshAccount(id);
     updateTrayMenu();
     return { success: true, rankData };
   } catch (e) {
-    // 401/403 might mean the key is expired, but could also be a temporary Riot issue
-    // or a propagation delay right after regeneration. Re-read the actual status from
-    // disk instead of blindly forcing 'expired' — if the key really is expired the
-    // saved timestamp will reflect that; if it's valid, the UI must not reset to 00:00.
     if (e.status === 401 || e.status === 403) {
       push('apiKeyStatus', apiKeyStatus());
     }
     return { success: false, error: e.message || 'Erro desconhecido' };
+  } finally {
+    refreshingAccounts.delete(id);
   }
 });
 
@@ -1011,6 +1033,10 @@ ipcMain.handle('backup:export', async (_, { password }) => {
     const portableKey  = deriveKeyPortable(password, portableSalt);
 
     const exportAccounts = data.accounts.map(a => {
+      // Watched accounts have no credentials — export them as-is
+      if (a.accountType === 'watched' || !a.login || !a.password) {
+        return { ...a, login: null, password: null };
+      }
       try {
         return {
           ...a,
@@ -1063,6 +1089,12 @@ ipcMain.handle('backup:import', async (_, { password }) => {
 
     for (const a of raw.accounts) {
       if (existingIds.has(a.id)) continue;
+      // Watched accounts have no credentials — import them directly
+      if (a.accountType === 'watched' || !a.login || !a.password) {
+        data.accounts.push({ ...a, login: null, password: null, accountType: 'watched' });
+        imported++;
+        continue;
+      }
       try {
         data.accounts.push({
           ...a,
@@ -1070,7 +1102,7 @@ ipcMain.handle('backup:import', async (_, { password }) => {
           password: encrypt(decrypt(a.password, portableKey), encryptionKey),
         });
         imported++;
-      } catch { /* pula contas com credenciais inválidas */ }
+      } catch { /* pula contas com credenciais inválidas ou corrompidas */ }
     }
 
     writeData(data);
@@ -1116,6 +1148,10 @@ ipcMain.handle('app:openMain', () => {
 // ============================================================
 app.whenReady().then(() => {
   DATA_PATH = path.join(app.getPath('userData'), 'lam-data.json');
+  // Restore lockout state persisted from a previous session
+  const _d = readData();
+  loginAttempts = _d.loginAttempts || 0;
+  lockoutUntil  = _d.lockoutUntil  || 0;
   globalShortcut.register('CommandOrControl+Shift+L', () => { mainWindow?.show(); mainWindow?.focus(); });
   setupTray();
   createLoginWindow();

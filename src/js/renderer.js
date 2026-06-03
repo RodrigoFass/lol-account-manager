@@ -602,7 +602,9 @@ async function refreshOne(id, btn) {
   }
   btn.textContent = orig;
   btn.disabled = false;
-  await loadAccounts();
+  // rankUpdate push event already updated allAccounts + DOM in-place;
+  // only reload from disk on error to ensure UI matches persisted state
+  if (!res.success) await loadAccounts();
 }
 
 async function refreshAll() {
@@ -928,7 +930,11 @@ function initDragDrop() {
       filterAccounts();
 
       // Persist new order
-      await api.accounts.reorder(allAccounts.map(a => a.id));
+      const reorderRes = await api.accounts.reorder(allAccounts.map(a => a.id));
+      if (!reorderRes.success) {
+        showToast('Erro ao salvar nova ordem. Recarregando...', 'error');
+        await loadAccounts(); // restore disk order
+      }
       dragSrcId = null;
     });
   });
@@ -948,12 +954,15 @@ function toggleCompare(cb) {
 }
 
 function toggleCompareAll(masterCb) {
-  const rows = document.querySelectorAll('#accounts-tbody tr[data-id]');
-  rows.forEach(tr => {
-    const id = tr.dataset.id;
+  // Works in both table view (tr[data-id]) and card view (.compare-checkbox[data-id])
+  const checkboxes = document.querySelectorAll('.compare-checkbox[data-id]');
+  checkboxes.forEach(cb => {
+    const id = cb.dataset.id;
     if (masterCb.checked) selectedForCompare.add(id);
     else                  selectedForCompare.delete(id);
-    tr.querySelector('.compare-checkbox').checked = masterCb.checked;
+    cb.checked = masterCb.checked;
+    const card = document.getElementById(`card-${id}`);
+    if (card) card.classList.toggle('card-selected', masterCb.checked);
   });
   updateCompareBar();
 }

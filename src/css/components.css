@@ -194,12 +194,17 @@
 
 /* =============================================
    QUEUE FILTER — column visibility
+   col 1 = compare  col 2 = drag  col 3 = #
+   col 4 = account  col 5 = server
+   col 6 = Solo/Duo  col 7 = Flex  col 8 = updated  col 9 = actions
    ============================================= */
-#accounts-table.hide-flex-col th:nth-child(6),
-#accounts-table.hide-flex-col td:nth-child(6) { display: none; }
+/* Solo/Duo selected → hide Flex column (7) */
+#accounts-table.hide-flex-col th:nth-child(7),
+#accounts-table.hide-flex-col td:nth-child(7) { display: none; }
 
-#accounts-table.hide-solo-col th:nth-child(5),
-#accounts-table.hide-solo-col td:nth-child(5) { display: none; }
+/* Flex selected → hide Solo/Duo column (6) */
+#accounts-table.hide-solo-col th:nth-child(6),
+#accounts-table.hide-solo-col td:nth-child(6) { display: none; }
 
 /* =============================================
    DRAG AND DROP
@@ -266,6 +271,7 @@ tr.drag-over {
 
 .tag-main     { background: rgba(230,57,70,0.15);  color: #ff6b78; }
 .tag-smurf    { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.tag-treino   { background: rgba(168,85,247,0.15); color: #c084fc; }
 .tag-duo      { background: rgba(34,197,94,0.15);  color: #4ade80; }
 .tag-amigo    { background: rgba(245,158,11,0.15); color: #fbbf24; }
 .tag-inativa  { background: rgba(63,63,70,0.25);   color: var(--text-muted); }
@@ -473,9 +479,6 @@ tr.drag-over {
 .winrate-track    { flex: 1; height: 3px; background: var(--bg-hover); border-radius: 99px; overflow: hidden; min-width: 40px; }
 .winrate-fill     { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
 
-/* Legacy compat */
-.winrate-bar  { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.winrate-text { white-space: nowrap; color: var(--text-muted); min-width: 40px; text-align: right; }
 
 /* LP value */
 .lp-value       { font-weight: 700; font-size: 12.5px; }
@@ -770,15 +773,7 @@ tr.drag-over {
   cursor: pointer;
 }
 
-/* Updated nth-child overrides */
-#accounts-table.hide-flex-col th:nth-child(7),
-#accounts-table.hide-flex-col td:nth-child(7) { display: none; }
-#accounts-table.hide-solo-col th:nth-child(6),
-#accounts-table.hide-solo-col td:nth-child(6) { display: none; }
-#accounts-table.hide-flex-col th:nth-child(6),
-#accounts-table.hide-flex-col td:nth-child(6) { display: table-cell; }
-#accounts-table.hide-solo-col th:nth-child(5),
-#accounts-table.hide-solo-col td:nth-child(5) { display: table-cell; }
+/* (nth-child column rules consolidated at top of file) */
 
 /* =============================================
    VIEW TOGGLE
@@ -1100,19 +1095,4 @@ tr.drag-over {
   height: 13px !important;
 }
 
-/* =============================================
-   CHAMPIONS GRID (reserved for future feature)
-   ============================================= */
-.champions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
-.champion-card {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 8px 4px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer; transition: var(--transition-fast); position: relative;
-}
-.champion-card:hover { border-color: var(--accent-red); }
-.champion-card img { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; }
-.champion-card .champ-name { font-size: 10px; color: var(--text-muted); text-align: center; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
-.mastery-badge { position: absolute; top: 4px; right: 4px; font-size: 9px; font-weight: 700; background: var(--accent-red); color: white; border-radius: 99px; padding: 0 4px; line-height: 16px; }
+/* Champions section styles live here when re-enabled */

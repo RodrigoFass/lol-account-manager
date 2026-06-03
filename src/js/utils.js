@@ -32,13 +32,6 @@ function tierToNumber(tier, div) {
   return base + (divMap[div] !== undefined ? divMap[div] * 100 : 0);
 }
 
-function formatRank(rank) {
-  if (!rank || rank.tier === 'UNRANKED') return 'Sem Rank';
-  const name = TIER_PT[rank.tier] || rank.tier;
-  if (['MASTER','GRANDMASTER','CHALLENGER'].includes(rank.tier)) return `${name} ${rank.lp} LP`;
-  return `${name} ${rank.division} — ${rank.lp} LP`;
-}
-
 // ── Tier emblem SVG (inline — no network request, works offline)
 // Root cause: ddragon.leagueoflegends.com/cdn/img/ranked-emblems/ returns 403.
 // Solution: generate hexagonal crest SVGs client-side with per-tier colours.
