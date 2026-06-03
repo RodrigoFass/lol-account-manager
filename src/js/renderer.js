@@ -517,6 +517,9 @@ async function lookupPuuid() {
     const editId = document.getElementById('edit-account-id')?.value;
     if (editId) {
       await api.accounts.update(editId, { puuid: res.puuid });
+      // Keep in-memory cache in sync so the Edit modal shows the correct PUUID on re-open
+      const idx = allAccounts.findIndex(a => a.id === editId);
+      if (idx !== -1) allAccounts[idx].puuid = res.puuid;
       showToast('✅ PUUID salvo! Feche este modal e clique em ⟳ para atualizar o rank.', 'success', 6000);
     } else {
       showToast('✅ PUUID encontrado! Clique em Salvar Conta para confirmar.', 'success', 5000);
@@ -616,7 +619,9 @@ async function refreshAll() {
   else             showToast(res.error || 'Erro ao atualizar.', 'error');
   btn.disabled = false;
   btn.innerHTML = '⟳';
-  await loadAccounts();
+  // rankUpdate push events already updated allAccounts + DOM per account;
+  // a full reload is only needed when the batch fails entirely
+  if (!res.success) await loadAccounts();
 }
 
 // ── Clipboard ─────────────────────────────────────────────────
@@ -753,11 +758,20 @@ function applyTheme(theme) {
   document.body.classList.toggle('theme-light', theme === 'light');
 }
 
-// Immediately apply + persist theme when the select changes  (Bug 3 fix)
+// Immediately apply + persist theme when the select changes
 async function changeTheme(theme) {
   applyTheme(theme);
   settingsCache.theme = theme;
   await api.settings.set('theme', theme);
+  // Reset history chart so it's rebuilt with correct theme colors on next render
+  if (typeof historyChart !== 'undefined' && historyChart) {
+    historyChart.destroy();
+    historyChart = null;
+    if (typeof _lastChartAccountId !== 'undefined') _lastChartAccountId = null;
+    if (typeof currentHistoryAccount !== 'undefined' && currentHistoryAccount) {
+      renderHistoryChart(currentHistoryAccount);
+    }
+  }
 }
 
 // Immediately persist one notification toggle on change  (Bug 2 fix)
@@ -800,6 +814,9 @@ async function saveSettings() {
   try {
     const el    = id => document.getElementById(id);
     const theme = el('theme-select').value;
+    // Note: theme is already persisted immediately via changeTheme().
+    // Note: notifications are already persisted immediately via saveNotifSetting().
+    // saveSettings only needs to handle refreshInterval and closeAction here.
     await api.settings.set('refreshInterval', parseInt(el('refresh-interval').value) || 15);
     await api.settings.set('theme',           theme);
     await api.settings.set('closeAction',     el('close-action').value);
@@ -884,60 +901,64 @@ function escHtml(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Drag-and-drop reorder ─────────────────────────────────────
+// ── Drag-and-drop reorder (event-delegated on tbody) ─────────
+// Delegating to tbody means we attach ONCE and never accumulate
+// duplicate listeners across re-renders or rankUpdate events.
+function _ddRow(e)  { return e.target.closest('tr[data-id]'); }
+function _ddClear(tbody) { tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over')); }
+
+function _onDragStart(e) {
+  const tr = _ddRow(e); if (!tr) return;
+  dragSrcId = tr.dataset.id;
+  tr.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragSrcId);
+}
+function _onDragEnd(e) {
+  const tbody = e.currentTarget;
+  const tr = _ddRow(e); if (tr) tr.classList.remove('dragging');
+  _ddClear(tbody);
+}
+function _onDragOver(e) {
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+  const tbody = e.currentTarget; _ddClear(tbody);
+  const tr = _ddRow(e);
+  if (tr && tr.dataset.id !== dragSrcId) tr.classList.add('drag-over');
+}
+function _onDragLeave(e) { const tr = _ddRow(e); if (tr) tr.classList.remove('drag-over'); }
+async function _onDrop(e) {
+  e.preventDefault();
+  const tbody = e.currentTarget; _ddClear(tbody);
+  const tr = _ddRow(e);
+  if (!tr || !dragSrcId || dragSrcId === tr.dataset.id) return;
+  const srcIdx = allAccounts.findIndex(a => a.id === dragSrcId);
+  const dstIdx = allAccounts.findIndex(a => a.id === tr.dataset.id);
+  if (srcIdx === -1 || dstIdx === -1) return;
+  const [moved] = allAccounts.splice(srcIdx, 1);
+  allAccounts.splice(dstIdx, 0, moved);
+  filterAccounts();
+  const reorderRes = await api.accounts.reorder(allAccounts.map(a => a.id));
+  if (!reorderRes.success) {
+    showToast('Erro ao salvar nova ordem. Recarregando...', 'error');
+    await loadAccounts();
+  }
+  dragSrcId = null;
+}
+
 function initDragDrop() {
   const tbody = document.getElementById('accounts-tbody');
   if (!tbody) return;
-
-  tbody.querySelectorAll('tr[data-id]').forEach(tr => {
-    tr.addEventListener('dragstart', e => {
-      dragSrcId = tr.dataset.id;
-      tr.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', dragSrcId);
-    });
-
-    tr.addEventListener('dragend', () => {
-      tr.classList.remove('dragging');
-      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
-    });
-
-    tr.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
-      if (tr.dataset.id !== dragSrcId) tr.classList.add('drag-over');
-    });
-
-    tr.addEventListener('dragleave', () => {
-      tr.classList.remove('drag-over');
-    });
-
-    tr.addEventListener('drop', async e => {
-      e.preventDefault();
-      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
-      if (!dragSrcId || dragSrcId === tr.dataset.id) return;
-
-      const srcIdx = allAccounts.findIndex(a => a.id === dragSrcId);
-      const dstIdx = allAccounts.findIndex(a => a.id === tr.dataset.id);
-      if (srcIdx === -1 || dstIdx === -1) return;
-
-      // Reorder in memory
-      const [moved] = allAccounts.splice(srcIdx, 1);
-      allAccounts.splice(dstIdx, 0, moved);
-
-      // Re-render with current filters applied
-      filterAccounts();
-
-      // Persist new order
-      const reorderRes = await api.accounts.reorder(allAccounts.map(a => a.id));
-      if (!reorderRes.success) {
-        showToast('Erro ao salvar nova ordem. Recarregando...', 'error');
-        await loadAccounts(); // restore disk order
-      }
-      dragSrcId = null;
-    });
-  });
+  // Remove previous delegated handlers before re-attaching — idempotent
+  tbody.removeEventListener('dragstart', _onDragStart);
+  tbody.removeEventListener('dragend',   _onDragEnd);
+  tbody.removeEventListener('dragover',  _onDragOver);
+  tbody.removeEventListener('dragleave', _onDragLeave);
+  tbody.removeEventListener('drop',      _onDrop);
+  tbody.addEventListener('dragstart', _onDragStart);
+  tbody.addEventListener('dragend',   _onDragEnd);
+  tbody.addEventListener('dragover',  _onDragOver);
+  tbody.addEventListener('dragleave', _onDragLeave);
+  tbody.addEventListener('drop',      _onDrop);
 }
 
 // ── Compare Selection ─────────────────────────────────────────
@@ -1072,17 +1093,20 @@ function toggleWatchMode(isWatch) {
   const group = document.getElementById('credentials-group');
   if (!group) return;
   group.classList.toggle('hidden', isWatch);
-  // Clear fields when hiding
+  const loginEl    = document.getElementById('f-login');
+  const passwordEl = document.getElementById('f-password');
+  if (loginEl)    loginEl.disabled    = isWatch;
+  if (passwordEl) passwordEl.disabled = isWatch;
   if (isWatch) {
-    document.getElementById('f-login').value    = '';
-    document.getElementById('f-password').value = '';
+    if (loginEl)    loginEl.value    = '';
+    if (passwordEl) passwordEl.value = '';
   }
 }
 
 // ── Escape closes any open modal ─────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  const modals = ['account-modal', 'compare-modal', 'confirm-delete-modal', 'close-dialog'];
+  const modals = ['account-modal', 'compare-modal', 'confirm-delete-modal', 'confirm-logout-modal', 'close-dialog'];
   for (const id of modals) {
     const el = document.getElementById(id);
     if (el && el.classList.contains('open')) { el.classList.remove('open'); break; }

@@ -73,10 +73,11 @@ function filterHistoryData(history) {
     const p = history[i - 1];
     return h.tier !== p.tier || h.division !== p.division || h.lp !== p.lp;
   });
+  if (historyRange === 'all') return deduped;
   const now    = Date.now();
-  const cutoff = { week: 7 * 86400000, month: 30 * 86400000, all: Infinity }[historyRange] || Infinity;
-  const filtered = deduped.filter(h => now - new Date(h.timestamp).getTime() <= cutoff);
-  return filtered.length ? filtered : deduped.slice(-20);
+  const cutoff = { week: 7 * 86400000, month: 30 * 86400000 }[historyRange] || 7 * 86400000;
+  // Return empty array if no entries fall within range — caller handles empty state
+  return deduped.filter(h => now - new Date(h.timestamp).getTime() <= cutoff);
 }
 
 function entryScore(h) {
@@ -125,6 +126,15 @@ function renderHistoryChart(account) {
   }
 
   const data = filterHistoryData(history);
+
+  // When the date range filter yields no data, show an explicit message
+  // instead of silently falling back to older data outside the range
+  if (!data.length && historyRange !== 'all') {
+    const rangeLabel = historyRange === 'week' ? '7 dias' : '30 dias';
+    showEmpty(`Sem dados nos últimos ${rangeLabel}`,
+      `Nenhuma mudança de rank registrada neste período. Tente selecionar "Tudo" para ver o histórico completo.`);
+    return;
+  }
 
   if (data.length < 2) {
     const h = data[0] || {};

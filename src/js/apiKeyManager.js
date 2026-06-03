@@ -149,7 +149,7 @@ async function validateAndSaveKey() {
   const btn   = document.getElementById('validate-btn');
 
   const raw = input.value;
-  const key = raw.replace(/[\s ­​‌‍⁠﻿]/g, '');
+  const key = raw.replace(/[s ­​‌‍⁠﻿]/g, '');
 
   if (key !== raw.trim()) {
     showToast('⚠️ Foram removidos espaços ou caracteres invisíveis da chave.', 'warning', 4000);

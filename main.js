@@ -32,12 +32,16 @@ const REGIONAL_ROUTING = {
 };
 
 const SERVER_HOSTS = {
-  BR1: 'br1.api.riotgames.com', NA1: 'na1.api.riotgames.com',
-  EUW1: 'euw1.api.riotgames.com', EUNE1: 'eun1.api.riotgames.com',
-  LAN: 'la1.api.riotgames.com',  LAS: 'la2.api.riotgames.com',
-  KR: 'kr.api.riotgames.com',    JP1: 'jp1.api.riotgames.com',
-  OC1: 'oc1.api.riotgames.com',  TR1: 'tr1.api.riotgames.com',
+  BR1: 'br1.api.riotgames.com',   NA1:  'na1.api.riotgames.com',
+  EUW1: 'euw1.api.riotgames.com', EUNE1:'eun1.api.riotgames.com',
+  LAN: 'la1.api.riotgames.com',   LAS:  'la2.api.riotgames.com',
+  KR: 'kr.api.riotgames.com',     JP1:  'jp1.api.riotgames.com',
+  OC1: 'oc1.api.riotgames.com',   TR1:  'tr1.api.riotgames.com',
   RU: 'ru.api.riotgames.com',
+  // SEA servers
+  PH2: 'ph2.api.riotgames.com',   SG2:  'sg2.api.riotgames.com',
+  TH2: 'th2.api.riotgames.com',   TW2:  'tw2.api.riotgames.com',
+  VN2: 'vn2.api.riotgames.com',
 };
 
 const TIER_ORDER = ['IRON','BRONZE','SILVER','GOLD','PLATINUM','EMERALD','DIAMOND','MASTER','GRANDMASTER','CHALLENGER'];
@@ -236,6 +240,8 @@ function writeData(data) {
 // AUTH
 // ============================================================
 async function setupMasterPassword(password) {
+  if (!password || password.length < 6)
+    throw new Error('Senha muito curta — mínimo 6 caracteres');
   const data = readData();
   const salt = generateSalt();
   data.masterPasswordHash = await bcrypt.hash(password, 12);
@@ -577,7 +583,12 @@ async function refreshAccount(id) {
 
 async function refreshAll() {
   for (const a of getAccounts()) {
-    try { await refreshAccount(a.id); await sleep(300); } catch (e) { console.error('refresh err:', e.message); }
+    // Use the same lock used by riot:fetchRanking to prevent concurrent refreshes
+    if (refreshingAccounts.has(a.id)) continue;
+    refreshingAccounts.add(a.id);
+    try { await refreshAccount(a.id); await sleep(300); }
+    catch (e) { console.error('refresh err:', e.message); }
+    finally { refreshingAccounts.delete(a.id); }
   }
   updateTrayMenu();
 }
@@ -1095,8 +1106,15 @@ ipcMain.handle('backup:import', async (_, { password }) => {
 
     for (const a of raw.accounts) {
       if (existingIds.has(a.id)) continue;
-      // Watched accounts have no credentials — import them directly
-      if (a.accountType === 'watched' || !a.login || !a.password) {
+      // Watched accounts (intentionally no credentials) — preserve original type
+      if (a.accountType === 'watched') {
+        data.accounts.push({ ...a, login: null, password: null, accountType: 'watched' });
+        imported++;
+        continue;
+      }
+      // Full account with missing credentials (e.g. pre-1.0 export or corruption)
+      if (!a.login || !a.password) {
+        console.warn(`[import] account ${a.id} (${a.nickname}) has no credentials — imported as watched`);
         data.accounts.push({ ...a, login: null, password: null, accountType: 'watched' });
         imported++;
         continue;
@@ -1108,7 +1126,9 @@ ipcMain.handle('backup:import', async (_, { password }) => {
           password: encrypt(decrypt(a.password, portableKey), encryptionKey),
         });
         imported++;
-      } catch { /* pula contas com credenciais inválidas ou corrompidas */ }
+      } catch (e) {
+        console.warn(`[import] skipped account ${a.id} (${a.nickname}) — credentials corrupted: ${e.message}`);
+      }
     }
 
     writeData(data);
