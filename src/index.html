@@ -161,6 +161,11 @@
       <section class="section" id="section-history">
         <div class="section-header">
           <h2>📈 Histórico de Elo</h2>
+          <!-- Queue toggle — lives in the header so it's always visible -->
+          <div class="chart-controls" style="margin:0">
+            <button class="chart-btn queue-btn active" onclick="setHistoryQueue('solo',this)">Solo / Duo</button>
+            <button class="chart-btn queue-btn" onclick="setHistoryQueue('flex',this)">Flex</button>
+          </div>
           <!-- Custom account selector (visual layer) -->
           <div class="account-select-wrapper" id="history-account-dropdown">
             <button class="account-select-btn" type="button" onclick="toggleAccountDropdown()" id="account-select-trigger">
@@ -185,17 +190,11 @@
             <!-- ── Summary stat cards ── -->
             <div id="history-summary" class="history-summary-row"></div>
 
-            <!-- ── Queue + Range controls ── -->
-            <div class="chart-controls-row">
-              <div class="chart-controls">
-                <button class="chart-btn queue-btn active" onclick="setHistoryQueue('solo',this)">Solo / Duo</button>
-                <button class="chart-btn queue-btn" onclick="setHistoryQueue('flex',this)">Flex</button>
-              </div>
-              <div class="chart-controls">
-                <button class="chart-btn range-btn active" onclick="setHistoryRange('week',this)">7 dias</button>
-                <button class="chart-btn range-btn" onclick="setHistoryRange('month',this)">30 dias</button>
-                <button class="chart-btn range-btn" onclick="setHistoryRange('all',this)">Tudo</button>
-              </div>
+            <!-- ── Range controls ── -->
+            <div class="chart-controls" style="margin-bottom:12px">
+              <button class="chart-btn range-btn active" onclick="setHistoryRange('week',this)">7 dias</button>
+              <button class="chart-btn range-btn" onclick="setHistoryRange('month',this)">30 dias</button>
+              <button class="chart-btn range-btn" onclick="setHistoryRange('all',this)">Tudo</button>
             </div>
             <div class="card" style="padding:16px;margin-bottom:24px">
               <div class="chart-container">
