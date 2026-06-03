@@ -57,44 +57,55 @@ function updateApiKeyUI(status) {
 }
 
 // ── Countdown — uses absolute expiry timestamp ────────────────
-// Stores Date.now() + remaining once and derives remaining each
-// tick from Date.now(). This means sleep/hibernate cannot cause
-// drift: after the system wakes up, Date.now() returns the real
-// current time and the subtraction yields the correct value.
+// Module-level tick reference so visibilitychange can pause/resume
+// without recreating the closure (avoids drift on minimize/tray).
+let _activeTick = null;
+
+function _countdownTick() {
+  const remaining = _keyExpiryTs - Date.now();
+  if (remaining <= 0) {
+    clearInterval(apiKeyCountdownTimer);
+    apiKeyCountdownTimer = null;
+    _activeTick = null;
+    const expired = { status: 'expired', remaining: 0 };
+    updateApiKeyUI(expired);
+    updateSettingsApiKeyUI(expired);
+    return;
+  }
+  const st = remaining <= 2 * 60 * 60 * 1000
+    ? { status: 'warning', remaining }
+    : { status: 'valid',   remaining };
+  if (currentStatus?.status === 'valid' && st.status === 'warning') updateApiKeyUI(st);
+  updateTimerDisplay(remaining);
+  updateSettingsApiKeyUI(st);
+}
+
 function startCountdown(status) {
   if (apiKeyCountdownTimer) { clearInterval(apiKeyCountdownTimer); apiKeyCountdownTimer = null; }
   if (status.status !== 'valid' && status.status !== 'warning') return;
 
   _keyExpiryTs = Date.now() + status.remaining;
+  _activeTick  = _countdownTick;
 
-  function tick() {
-    const remaining = _keyExpiryTs - Date.now();
-
-    if (remaining <= 0) {
-      clearInterval(apiKeyCountdownTimer);
-      apiKeyCountdownTimer = null;
-      const expired = { status: 'expired', remaining: 0 };
-      updateApiKeyUI(expired);
-      updateSettingsApiKeyUI(expired);
-      return;
-    }
-
-    const st = remaining <= 2 * 60 * 60 * 1000
-      ? { status: 'warning', remaining }
-      : { status: 'valid',   remaining };
-
-    // Trigger banner update only on valid → warning transition
-    if (currentStatus?.status === 'valid' && st.status === 'warning') {
-      updateApiKeyUI(st);
-    }
-
-    updateTimerDisplay(remaining);
-    updateSettingsApiKeyUI(st);
-  }
-
-  tick(); // immediate first render
-  apiKeyCountdownTimer = setInterval(tick, 1000);
+  _countdownTick();                                    // immediate first render
+  apiKeyCountdownTimer = setInterval(_countdownTick, 1000);
 }
+
+// ── Pause countdown when window is hidden (minimized / sent to tray) ──
+// The 1-second interval fires 86 400 times/day — zero value when invisible.
+// Because _keyExpiryTs is absolute, resuming needs no recalculation.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Pause — clear interval, keep _keyExpiryTs intact
+    if (apiKeyCountdownTimer) { clearInterval(apiKeyCountdownTimer); apiKeyCountdownTimer = null; }
+  } else if (_activeTick && _keyExpiryTs - Date.now() > 0) {
+    // Resume — restart interval with the same tick function (no drift)
+    if (!apiKeyCountdownTimer) {
+      _activeTick();   // immediate update on window restore
+      apiKeyCountdownTimer = setInterval(_activeTick, 1000);
+    }
+  }
+});
 
 // ── Time formatting ───────────────────────────────────────────
 // Returns a human-readable string: "22h 30min", "45 min", "4 min 12s", "30s"

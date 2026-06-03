@@ -33,28 +33,31 @@ function tierToNumber(tier, div) {
 }
 
 // ── Tier emblem SVG (inline — no network request, works offline)
-// Root cause: ddragon.leagueoflegends.com/cdn/img/ranked-emblems/ returns 403.
-// Solution: generate hexagonal crest SVGs client-side with per-tier colours.
+// Memoized: the 10 (+ 1 fallback) outputs are deterministic and finite.
+// Pre-computed once at module load → O(1) lookup instead of string concat per render.
+const _EMBLEM_COLORS = {
+  IRON:        ['#5e5e5e', '#8a8a8a'],
+  BRONZE:      ['#7a3310', '#c97a3a'],
+  SILVER:      ['#606070', '#b8b8cc'],
+  GOLD:        ['#8a6500', '#e8c030'],
+  PLATINUM:    ['#006070', '#00b8b0'],
+  EMERALD:     ['#005830', '#30b870'],
+  DIAMOND:     ['#2840a0', '#6888f0'],
+  MASTER:      ['#5010a0', '#b060f0'],
+  GRANDMASTER: ['#980020', '#f03050'],
+  CHALLENGER:  ['#906000', '#f0d040'],
+};
+const _emblemCache = {};
 function tierEmblemSvg(tier) {
-  const C = {
-    IRON:        ['#5e5e5e', '#8a8a8a'],
-    BRONZE:      ['#7a3310', '#c97a3a'],
-    SILVER:      ['#606070', '#b8b8cc'],
-    GOLD:        ['#8a6500', '#e8c030'],
-    PLATINUM:    ['#006070', '#00b8b0'],
-    EMERALD:     ['#005830', '#30b870'],
-    DIAMOND:     ['#2840a0', '#6888f0'],
-    MASTER:      ['#5010a0', '#b060f0'],
-    GRANDMASTER: ['#980020', '#f03050'],
-    CHALLENGER:  ['#906000', '#f0d040'],
-  };
-  const [dark, light] = C[tier] || ['#333355', '#555577'];
-  // Three-layer hexagonal crest (flat-top hex; pointed sides)
-  return `<svg class="tier-emblem" viewBox="0 0 20 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
+  if (_emblemCache[tier]) return _emblemCache[tier];
+  const [dark, light] = _EMBLEM_COLORS[tier] || ['#333355', '#555577'];
+  const svg = `<svg class="tier-emblem" viewBox="0 0 20 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
     + `<polygon points="10,1 19,5.5 19,16.5 10,21 1,16.5 1,5.5" fill="${dark}"/>`
     + `<polygon points="10,3.5 16.5,7 16.5,15 10,18.5 3.5,15 3.5,7" fill="${light}" opacity=".85"/>`
     + `<polygon points="10,7 14,9.5 14,13.5 10,16 6,13.5 6,9.5" fill="rgba(255,255,255,.22)"/>`
     + `</svg>`;
+  _emblemCache[tier] = svg;
+  return svg;
 }
 
 function rankBadge(rank) {

@@ -606,6 +606,7 @@ function apiKeyStatus() {
 }
 
 function checkApiKeyExpiry() {
+  if (!isLoggedIn) return;   // no-op before login — avoids unnecessary disk read
   const s = apiKeyStatus();
   push('apiKeyStatus', s);
   if (s.status === 'expired') notify('apiKeyExpired', 'API Key expirada! Clique para renovar agora.');
@@ -622,14 +623,19 @@ function push(channel, data) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
 }
 
+// ── Notification settings cache ───────────────────────────────
+// Avoids calling readData() (synchronous disk read) on every notify()
+// call. Cache is invalidated whenever settings are written.
+let _notifCache = null;
+function _invalidateNotifCache() { _notifCache = null; }
+
 function notify(type, body) {
-  // Check user's notification preferences before firing
-  const notifSettings = readData().settings?.notifications;
-  if (notifSettings) {
-    // 'apiKeyExpired' shares the same toggle as 'apiKeyExpiring'
-    const key = type === 'apiKeyExpired' ? 'apiKeyExpiring' : type;
-    if (notifSettings[key] === false) return;
+  // Use cached notification preferences — eliminates disk read on every notify()
+  if (_notifCache === null) {
+    _notifCache = readData().settings?.notifications ?? {};
   }
+  const key = type === 'apiKeyExpired' ? 'apiKeyExpiring' : type;
+  if (_notifCache[key] === false) return;
   if (Notification.isSupported()) new Notification({ title: 'LoL Account Manager', body }).show();
   push('notification', { type, message: body });
 }
@@ -690,7 +696,14 @@ function setupTray() {
   updateTrayMenu();
 }
 
+// Debounced so it runs at most once per refresh cycle (50 accounts = 50 calls → 1 rebuild)
+let _trayDebounceTimer = null;
 function updateTrayMenu() {
+  if (!tray) return;
+  clearTimeout(_trayDebounceTimer);
+  _trayDebounceTimer = setTimeout(_buildTrayMenu, 500);
+}
+function _buildTrayMenu() {
   if (!tray) return;
   const accounts = isLoggedIn ? getAccounts() : [];
   const items = accounts.slice(0, 10).map(a => ({
@@ -960,6 +973,7 @@ ipcMain.handle('settings:set', async (_, {key, value}) => {
   data.settings[key] = value;
   writeData(data);
   if (key === 'refreshInterval') setupRefreshTimer(value);
+  if (key === 'notifications')   _invalidateNotifCache(); // keep notify() cache fresh
   return { success: true };
 });
 

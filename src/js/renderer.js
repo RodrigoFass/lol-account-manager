@@ -7,6 +7,7 @@ let dragSrcId           = null;
 let ddVersion           = '15.10.1';   // Data Dragon version — refreshed non-blocking on init
 let currentView         = 'table';     // 'table' | 'cards'
 let selectedForCompare  = new Set();   // account IDs checked for comparison
+let _accountSelectDirty = false;       // true when history dropdown needs rebuild on next visit
 
 // ── Bootstrap ────────────────────────────────────────────────
 async function init() {
@@ -55,7 +56,10 @@ function loadQueueFilterPref() {
 function setupEventListeners() {
   api.on('rankUpdate', ({ accountId, rankData, flexRankData, profileIconId }) => {
     updateAccountRow(accountId, rankData, flexRankData, profileIconId);
-    populateAccountSelects();
+    // Only rebuild the history dropdown when the user is actually on that section
+    // (avoids 50 full DOM rebuilds per refresh cycle when section is not visible)
+    if (currentSection === 'history') populateAccountSelects();
+    else _accountSelectDirty = true;
   });
 
   // Resync UI + restart countdown (handles powerMonitor resume and key renewal)
@@ -133,7 +137,11 @@ function navigate(section) {
   currentSection = section;
 
   if (section === 'settings') loadSettingsUI();
-  if (section === 'history')  populateAccountSelects();
+  if (section === 'history') {
+    // Rebuild dropdown lazily — only if rank updates arrived while on another section
+    if (_accountSelectDirty) { populateAccountSelects(); _accountSelectDirty = false; }
+    else populateAccountSelects();
+  }
 }
 
 // ── Accounts ─────────────────────────────────────────────────
@@ -314,12 +322,10 @@ function updateAccountRow(accountId, rankData, flexRankData, profileIconId) {
   if (profileIconId != null)       allAccounts[idx].profileIconId = profileIconId;
   allAccounts[idx].lastUpdated = new Date().toISOString();
 
-  // Table view
+  // Table view — drag delegation is on <tbody>, not on rows;
+  // no need to re-register listeners when a single <tr> is replaced
   const row = document.getElementById(`row-${accountId}`);
-  if (row) {
-    row.outerHTML = buildRow(allAccounts[idx], idx + 1);
-    initDragDrop();
-  }
+  if (row) row.outerHTML = buildRow(allAccounts[idx], idx + 1);
 
   // Card view — update the card in-place so cards mode stays live too
   const card = document.getElementById(`card-${accountId}`);
@@ -549,8 +555,15 @@ function confirmDelete(id, name) {
   fresh.addEventListener('click', async () => {
     closeModalById('confirm-delete-modal');
     const res = await api.accounts.delete(id);
-    if (res.success) { showToast('Conta removida.', 'info'); await loadAccounts(); }
-    else             { showToast(res.error || 'Erro ao remover.', 'error'); }
+    if (res.success) {
+      // Remove from compare selection so Set doesn't hold stale IDs
+      selectedForCompare.delete(id);
+      updateCompareBar();
+      showToast('Conta removida.', 'info');
+      await loadAccounts();
+    } else {
+      showToast(res.error || 'Erro ao remover.', 'error');
+    }
   });
   openModal('confirm-delete-modal');
 }
@@ -696,22 +709,33 @@ function refreshAccountSelectTrigger(id) {
      <span class="sel-caret">▾</span>`;
 }
 
+// Stored reference so we can remove the listener when dropdown closes via selection,
+// preventing orphaned document-level click listeners from accumulating.
+let _ddCloseHandler = null;
+
 function toggleAccountDropdown() {
   const dd = document.getElementById('account-select-options');
   if (!dd) return;
   const isOpen = dd.style.display !== 'none';
-  dd.style.display = isOpen ? 'none' : 'block';
+  _closeAccountDropdown(dd);         // always clean up existing handler first
   if (!isOpen) {
+    dd.style.display = 'block';
     setTimeout(() => {
-      function closeOutside(e) {
+      _ddCloseHandler = e => {
         const wrapper = document.getElementById('history-account-dropdown');
-        if (wrapper && !wrapper.contains(e.target)) {
-          dd.style.display = 'none';
-          document.removeEventListener('click', closeOutside);
-        }
-      }
-      document.addEventListener('click', closeOutside);
+        if (wrapper && !wrapper.contains(e.target)) _closeAccountDropdown(dd);
+      };
+      document.addEventListener('click', _ddCloseHandler);
     }, 0);
+  }
+}
+
+function _closeAccountDropdown(dd) {
+  if (!dd) dd = document.getElementById('account-select-options');
+  if (dd) dd.style.display = 'none';
+  if (_ddCloseHandler) {
+    document.removeEventListener('click', _ddCloseHandler);
+    _ddCloseHandler = null;
   }
 }
 
@@ -721,14 +745,11 @@ function selectHistoryAccount(id) {
     sel.value = id;
     sel.dispatchEvent(new Event('change'));
   }
-  // Update option highlight states
   document.querySelectorAll('#account-select-options .account-select-option').forEach(opt => {
     opt.classList.toggle('selected', (opt.dataset.id || '') === id);
   });
   refreshAccountSelectTrigger(id);
-  // Close dropdown
-  const dd = document.getElementById('account-select-options');
-  if (dd) dd.style.display = 'none';
+  _closeAccountDropdown(null); // close and remove listener in one call
 }
 
 // ── Close dialog ──────────────────────────────────────────────
