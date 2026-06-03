@@ -167,7 +167,7 @@ Logins e senhas das contas são **sempre** armazenados criptografados. Nunca sã
 ## Tipos de Conta
 
 | Tipo | Credenciais | Rank | Histórico |
-|------|------------|------|-----------|----------|
+|------|------------|------|-----------|
 | **Completa** | Login + Senha (criptografados) | ✅ | ✅ |
 | **Monitorada** | Sem credenciais | ✅ | ✅ |
 
