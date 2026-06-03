@@ -502,7 +502,15 @@ tr.drag-over { background: rgba(192,57,43,0.08) !important; outline: 2px dashed 
 
 /* Charts */
 .chart-container { position: relative; height: 300px; }
-.chart-controls { display: flex; gap: 8px; margin-bottom: 16px; }
+.chart-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.chart-controls { display: flex; gap: 6px; }
 .chart-btn { padding: 5px 12px; font-size: 12px; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: var(--radius); color: var(--text-muted); cursor: pointer; transition: var(--transition); }
 .chart-btn.active { background: var(--accent-red); border-color: var(--accent-red); color: white; }
 .chart-btn:hover:not(.active) { border-color: var(--border-light); color: var(--text-primary); }

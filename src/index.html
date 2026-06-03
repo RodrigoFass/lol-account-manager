@@ -185,11 +185,17 @@
             <!-- ── Summary stat cards ── -->
             <div id="history-summary" class="history-summary-row"></div>
 
-            <!-- ── Range controls + chart ── -->
-            <div class="chart-controls" style="margin-bottom:12px">
-              <button class="chart-btn active" onclick="setHistoryRange('week',this)">7 dias</button>
-              <button class="chart-btn" onclick="setHistoryRange('month',this)">30 dias</button>
-              <button class="chart-btn" onclick="setHistoryRange('all',this)">Tudo</button>
+            <!-- ── Queue + Range controls ── -->
+            <div class="chart-controls-row">
+              <div class="chart-controls">
+                <button class="chart-btn queue-btn active" onclick="setHistoryQueue('solo',this)">Solo / Duo</button>
+                <button class="chart-btn queue-btn" onclick="setHistoryQueue('flex',this)">Flex</button>
+              </div>
+              <div class="chart-controls">
+                <button class="chart-btn range-btn active" onclick="setHistoryRange('week',this)">7 dias</button>
+                <button class="chart-btn range-btn" onclick="setHistoryRange('month',this)">30 dias</button>
+                <button class="chart-btn range-btn" onclick="setHistoryRange('all',this)">Tudo</button>
+              </div>
             </div>
             <div class="card" style="padding:16px;margin-bottom:24px">
               <div class="chart-container">

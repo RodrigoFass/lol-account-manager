@@ -17,13 +17,21 @@ const TIER_CHART_COLORS = {
 
 let historyChart          = null;
 let historyRange          = 'week';
+let historyQueue          = 'solo';  // 'solo' | 'flex'
 let currentHistoryAccount = null;
 
 // ── Public entry points ───────────────────────────────────────
 
 function setHistoryRange(range, btn) {
   historyRange = range;
-  document.querySelectorAll('.chart-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (currentHistoryAccount) renderHistoryChart(currentHistoryAccount);
+}
+
+function setHistoryQueue(queue, btn) {
+  historyQueue = queue;
+  document.querySelectorAll('.queue-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (currentHistoryAccount) renderHistoryChart(currentHistoryAccount);
 }
@@ -91,7 +99,8 @@ function periodLabel() {
 // ── Main renderer ─────────────────────────────────────────────
 
 function renderHistoryChart(account) {
-  const history   = account.history || [];
+  const isFlex    = historyQueue === 'flex';
+  const history   = isFlex ? (account.flexHistory || []) : (account.history || []);
   const emptyEl   = document.getElementById('history-empty');
   const contentEl = document.getElementById('history-content');
 
@@ -105,8 +114,11 @@ function renderHistoryChart(account) {
   };
 
   if (!history.length) {
-    showEmpty('Sem dados históricos',
-      'Atualize o rank desta conta para começar a acumular histórico.');
+    const queue = isFlex ? 'Flex' : 'Solo/Duo';
+    showEmpty(`Sem histórico de ${queue}`,
+      isFlex
+        ? 'Nenhuma partida de Flex registrada ainda. Jogue Flex e atualize a conta para acumular histórico.'
+        : 'Atualize o rank desta conta para começar a acumular histórico.');
     return;
   }
 
@@ -159,9 +171,10 @@ function renderHistorySummary(account, data) {
   else if (delta < -100) { trendIcon = '↓'; trendTxt = 'Caindo';   trendClass = 'trend-down'; }
   else                   { trendIcon = '→'; trendTxt = 'Estável';   trendClass = 'trend-neutral'; }
 
-  // Current rank: prefer live account data, fall back to last history entry
-  const raw = account.currentRank;
-  const cur = (raw && raw.tier && raw.tier !== 'UNRANKED')
+  // Current rank: use the right queue, fall back to last history entry
+  const isFlex = historyQueue === 'flex';
+  const raw    = isFlex ? account.flexRank : account.currentRank;
+  const cur    = (raw && raw.tier && raw.tier !== 'UNRANKED')
     ? raw
     : { tier: last.tier, division: last.division, lp: last.lp };
 
@@ -236,7 +249,7 @@ function buildHistoryChart(account, data) {
     data: {
       labels,
       datasets: [{
-        label:                `${account.nickname}#${account.tag}`,
+        label:                `${account.nickname}#${account.tag} — ${historyQueue === 'flex' ? 'Flex' : 'Solo/Duo'}`,
         data:                 values,
         borderColor:          tierColor,
         backgroundColor:      tierColor + '1a',   // ~10% opacity fill

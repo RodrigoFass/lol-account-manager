@@ -250,7 +250,7 @@ function publicAccount(a) {
     server: a.server, tags: a.tags, notes: a.notes,
     puuid: a.puuid, summonerId: a.summonerId, profileIconId: a.profileIconId ?? null,
     currentRank: a.currentRank, flexRank: a.flexRank || null, champions: a.champions,
-    history: a.history || [], lastUpdated: a.lastUpdated,
+    history: a.history || [], flexHistory: a.flexHistory || [], lastUpdated: a.lastUpdated,
     accountType: a.accountType || 'full',
   };
 }
@@ -272,7 +272,7 @@ function addAccount(d) {
     password: isWatched ? null : encrypt(d.password, encryptionKey),
     server: d.server, tags: d.tags || [], notes: d.notes || '',
     puuid: d.puuid || null, summonerId: null, profileIconId: null,
-    currentRank: null, flexRank: null, champions: null, history: [], lastUpdated: null,
+    currentRank: null, flexRank: null, champions: null, history: [], flexHistory: [], lastUpdated: null,
   });
   writeData(data);
   return id;
@@ -528,6 +528,21 @@ async function refreshAccount(id) {
   if (rankChanged) {
     liveAcct.history.push(histEntry);
     if (liveAcct.history.length > 100) liveAcct.history = liveAcct.history.slice(-100);
+  }
+
+  // Flex history — only record ranked flex entries (skip UNRANKED)
+  if (!liveAcct.flexHistory) liveAcct.flexHistory = [];
+  if (flexRank.tier !== 'UNRANKED') {
+    const flexHistEntry = { timestamp: now, tier: flexRank.tier, division: flexRank.division, lp: flexRank.lp };
+    const lastFlex      = liveAcct.flexHistory[liveAcct.flexHistory.length - 1];
+    const flexChanged   = !lastFlex ||
+      lastFlex.tier !== flexHistEntry.tier ||
+      lastFlex.division !== flexHistEntry.division ||
+      lastFlex.lp !== flexHistEntry.lp;
+    if (flexChanged) {
+      liveAcct.flexHistory.push(flexHistEntry);
+      if (liveAcct.flexHistory.length > 100) liveAcct.flexHistory = liveAcct.flexHistory.slice(-100);
+    }
   }
 
   writeData(live);
