@@ -994,19 +994,19 @@ tr.drag-over { background: rgba(192,57,43,0.08) !important; outline: 2px dashed 
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--surface);
+  background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 13px;
   text-align: left;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .account-select-btn:hover,
 .account-select-btn:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(138,43,226,0.15);
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 2px rgba(192,57,43,0.15);
   outline: none;
 }
 .account-select-dropdown {
@@ -1033,7 +1033,7 @@ tr.drag-over { background: rgba(192,57,43,0.08) !important; outline: 2px dashed 
   cursor: pointer;
   transition: background 0.1s;
 }
-.account-select-option:hover { background: var(--hover); }
+.account-select-option:hover { background: var(--bg-hover); }
 .account-select-option.selected { background: rgba(138,43,226,0.12); }
 
 /* Profile icon inside selector */
@@ -1050,7 +1050,7 @@ tr.drag-over { background: rgba(192,57,43,0.08) !important; outline: 2px dashed 
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-red);
   color: #fff;
   display: flex;
   align-items: center;
@@ -1071,7 +1071,7 @@ tr.drag-over { background: rgba(192,57,43,0.08) !important; outline: 2px dashed 
 .sel-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

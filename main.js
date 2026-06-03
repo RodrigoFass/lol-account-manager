@@ -707,6 +707,8 @@ ipcMain.handle('auth:changePassword', async (_, { oldPwd, newPwd }) => {
     const newSalt = generateSalt();
     const newKey  = deriveKey(newPwd, newSalt);
     for (const a of data.accounts) {
+      // Watched accounts have no credentials (null) — skip them
+      if (a.accountType === 'watched' || !a.login || !a.password) continue;
       a.login    = encrypt(decrypt(a.login,    oldKey), newKey);
       a.password = encrypt(decrypt(a.password, oldKey), newKey);
     }

@@ -55,7 +55,7 @@ function loadQueueFilterPref() {
 function setupEventListeners() {
   api.on('rankUpdate', ({ accountId, rankData, flexRankData, profileIconId }) => {
     updateAccountRow(accountId, rankData, flexRankData, profileIconId);
-    updateAccountSelects();
+    populateAccountSelects();
   });
 
   // Resync UI + restart countdown (handles powerMonitor resume and key renewal)
@@ -310,14 +310,20 @@ function updateAccountRow(accountId, rankData, flexRankData, profileIconId) {
   const idx = allAccounts.findIndex(a => a.id === accountId);
   if (idx === -1) return;
   allAccounts[idx].currentRank = rankData;
-  if (flexRankData  !== undefined) allAccounts[idx].flexRank     = flexRankData;
+  if (flexRankData  !== undefined) allAccounts[idx].flexRank      = flexRankData;
   if (profileIconId != null)       allAccounts[idx].profileIconId = profileIconId;
   allAccounts[idx].lastUpdated = new Date().toISOString();
+
+  // Table view
   const row = document.getElementById(`row-${accountId}`);
   if (row) {
     row.outerHTML = buildRow(allAccounts[idx], idx + 1);
     initDragDrop();
   }
+
+  // Card view — update the card in-place so cards mode stays live too
+  const card = document.getElementById(`card-${accountId}`);
+  if (card) card.outerHTML = buildCard(allAccounts[idx]);
 }
 
 function filterAccounts() {
@@ -521,7 +527,7 @@ async function lookupPuuid() {
       'Obtenha o PUUID manualmente em developer.riotgames.com → API Explorer → ACCOUNT-V1 → by-riot-id (Region: americas).',
       'warning', 12000
     );
-    electronAPI.apiKey.openRenewalPage();
+    api.apiKey.openRenewalPage();
   } else {
     showToast(`Não foi possível buscar o PUUID: ${res.error || 'erro desconhecido'}.`, 'error', 6000);
   }
@@ -633,7 +639,6 @@ function populateAccountSelects() {
   buildAccountDropdown();
 }
 
-function updateAccountSelects() { populateAccountSelects(); }
 
 // ── Custom account dropdown (history section) ─────────────────
 function _selIconHtml(a) {
@@ -1053,6 +1058,16 @@ function toggleWatchMode(isWatch) {
     document.getElementById('f-password').value = '';
   }
 }
+
+// ── Escape closes any open modal ─────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const modals = ['account-modal', 'compare-modal', 'confirm-delete-modal', 'close-dialog'];
+  for (const id of modals) {
+    const el = document.getElementById(id);
+    if (el && el.classList.contains('open')) { el.classList.remove('open'); break; }
+  }
+});
 
 // Bootstrap
 document.addEventListener('DOMContentLoaded', init);
