@@ -281,18 +281,23 @@ function sortAccounts(list) {
   return arr;
 }
 
-// Click a sortable column header
+// Click a sortable column header — 3-state cycle:
+// 1º clique = ordena (padrão) · 2º clique = inverte · 3º clique = volta à ordem manual
 function sortBy(col) {
-  if (sortColumn === col) {
-    sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+  const defaultDir = col === 'nickname' ? 'asc' : 'desc';   // names A→Z; elo/date highest/newest first
+  if (sortColumn !== col) {
+    sortColumn = col; sortDir = defaultDir;                 // 1st click
+  } else if (sortDir === defaultDir) {
+    sortDir = defaultDir === 'asc' ? 'desc' : 'asc';        // 2nd click: flip
   } else {
-    sortColumn = col;
-    sortDir = col === 'nickname' ? 'asc' : 'desc';   // names A→Z; elo/date highest/newest first
+    sortColumn = null;                                      // 3rd click: back to manual (drag) order
   }
   // Update header indicators
   document.querySelectorAll('#accounts-table .sort-ind').forEach(s => { s.textContent = ''; });
-  const ind = document.querySelector(`#accounts-table .sort-ind[data-col="${col}"]`);
-  if (ind) ind.textContent = sortDir === 'asc' ? ' ▲' : ' ▼';
+  if (sortColumn) {
+    const ind = document.querySelector(`#accounts-table .sort-ind[data-col="${col}"]`);
+    if (ind) ind.textContent = sortDir === 'asc' ? ' ▲' : ' ▼';
+  }
   filterAccounts();
 }
 
