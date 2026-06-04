@@ -1593,11 +1593,13 @@ function _renderDetailBody(p, d) {
           const url = _champIconUrl(m.championImage);
           const kda = ((m.kills + m.assists) / Math.max(m.deaths, 1)).toFixed(1);
           const mins = Math.floor(m.durationSec / 60);
+          const resultCls   = m.remake ? 'pd-remake' : (m.win ? 'pd-win' : 'pd-loss');
+          const resultLabel = m.remake ? 'Remake'    : (m.win ? 'Vitória' : 'Derrota');
           return `
-          <div class="pd-match ${m.win ? 'pd-win' : 'pd-loss'}">
+          <div class="pd-match ${resultCls}">
             ${url ? `<img class="pd-match-champ" src="${url}" alt="" onerror="this.style.visibility='hidden'">` : '<div class="pd-match-champ"></div>'}
             <div class="pd-match-info">
-              <span class="pd-match-result">${m.win ? 'Vitória' : 'Derrota'}</span>
+              <span class="pd-match-result">${resultLabel}</span>
               <span class="pd-match-champ-name">${escHtml(m.championName)}</span>
             </div>
             <div class="pd-match-kda">${m.kills}/${m.deaths}/${m.assists}<span class="pd-kda-sm"> (${kda})</span></div>

@@ -630,11 +630,15 @@ async function getPlayerDetails(puuid, server) {
       const me   = info?.participants?.find(pp => pp.puuid === puuid);
       if (!info || !me) continue;
       const c = champMap[me.championId] || {};
+      // Remake = early-surrender (AFK before ~3min). Riot flags it directly;
+      // fall back to a very short game duration for older records.
+      const remake = me.gameEndedInEarlySurrender === true || (info.gameDuration || 0) < 300;
       recentMatches.push({
         championId:    me.championId,
         championName:  c.name || me.championName || `Campeão ${me.championId}`,
         championImage: c.image || me.championName || null,
         win:           me.win,
+        remake,
         kills: me.kills, deaths: me.deaths, assists: me.assists,
         cs:            (me.totalMinionsKilled || 0) + (me.neutralMinionsKilled || 0),
         position:      me.teamPosition || me.individualPosition || '',
@@ -646,9 +650,10 @@ async function getPlayerDetails(puuid, server) {
     }
   } catch (e) { matchError = (e.message || '').replace(/^STEP:\S+ → /, ''); }
 
-  // Per-champion aggregation across the sampled ranked matches
+  // Per-champion aggregation — remakes are excluded (they don't count as W/L)
   const aggMap = {};
   for (const m of recentMatches) {
+    if (m.remake) continue;
     const a = aggMap[m.championId] || (aggMap[m.championId] =
       { championId: m.championId, name: m.championName, image: m.championImage,
         games: 0, wins: 0, k: 0, d: 0, a: 0, cs: 0, positions: {} });
@@ -665,16 +670,17 @@ async function getPlayerDetails(puuid, server) {
     position: _topPosition(a.positions),
   })).sort((x, y) => y.games - x.games || y.winrate - x.winrate);
 
-  // Trends (no "7-day" metric — removed)
-  const total = recentMatches.length;
-  const wins  = recentMatches.filter(m => m.win).length;
+  // Trends — remakes excluded from win/loss, streak and counts
+  const counted = recentMatches.filter(m => !m.remake);
+  const total = counted.length;
+  const wins  = counted.filter(m => m.win).length;
   const recentWinrate = total ? Math.round(wins / total * 100) : null;
   let streak = 0, streakType = null;
   if (total) {
-    streakType = recentMatches[0].win ? 'win' : 'loss';
-    for (const m of recentMatches) { if ((m.win ? 'win' : 'loss') === streakType) streak++; else break; }
+    streakType = counted[0].win ? 'win' : 'loss';
+    for (const m of counted) { if ((m.win ? 'win' : 'loss') === streakType) streak++; else break; }
   }
-  const distinctChamps = new Set(recentMatches.map(m => m.championId)).size;
+  const distinctChamps = new Set(counted.map(m => m.championId)).size;
 
   // Auto-detected play profile tags
   const profile = [];
