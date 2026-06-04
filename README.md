@@ -162,6 +162,8 @@ C:\Users\<SeuUsuário>\AppData\Roaming\lol-account-manager\lam-data.json
 
 Logins e senhas das contas são **sempre** armazenados criptografados. Nunca são salvos em texto puro.
 
+> ⚠️ **Importante — vínculo com o hardware:** a chave de criptografia é derivada de características desta máquina (hostname, usuário e modelo da CPU). Se você **trocar de computador, reinstalar o Windows, mudar o hostname ou trocar a CPU**, o arquivo `lam-data.json` se tornará **irrecuperável**. Para migrar seus dados com segurança, **exporte um backup `.lam`** (em Configurações → Backup e Restauração) antes de qualquer mudança — o backup usa uma derivação de chave portátil e pode ser importado em qualquer máquina com sua senha mestra.
+
 ---
 
 ## Tipos de Conta

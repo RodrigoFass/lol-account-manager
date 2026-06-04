@@ -76,7 +76,7 @@ function winrate(wins, losses) {
 }
 
 // Returns the fill/text color for a given win-rate percentage
-// < 50  → red  |  50-59 → green  |  60-69 → blue  |  ≥ 70 → purple
+// < 50  → red  |  50-59 → blue  |  60-69 → green  |  ≥ 70 → orange
 function wrColor(wr) {
   if (wr >= 70) return '#FF9B00';          // laranja — desempenho excepcional
   if (wr >= 60) return 'var(--success)';  // verde  — desempenho alto

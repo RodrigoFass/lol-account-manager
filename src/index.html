@@ -26,7 +26,7 @@
     <aside class="sidebar">
       <div class="sidebar-logo">
         <h1>LoL <span>Account</span><br>Manager</h1>
-        <p>v1.2.7</p>
+        <p id="app-version">v1.2.7</p>
       </div>
 
       <nav class="sidebar-nav">
@@ -130,6 +130,7 @@
               <button class="view-btn active" id="view-table-btn" onclick="setView('table',this)" title="Tabela">☰</button>
               <button class="view-btn" id="view-cards-btn" onclick="setView('cards',this)" title="Cards">⊞</button>
             </div>
+            <span id="last-refresh-label" style="font-size:11px;color:var(--text-dim);white-space:nowrap;display:none" title="Última atualização em lote"></span>
             <button class="btn btn-secondary" id="refresh-all-btn" onclick="refreshAll()" title="Atualizar Todos">⟳</button>
             <button class="btn btn-primary" onclick="openAddModal()" title="Adicionar Conta">+</button>
           </div>
@@ -251,6 +252,15 @@
               <div class="tool-desc">Abre a pasta de dados do app no Windows Explorer para acesso rápido aos arquivos.</div>
               <button class="btn btn-secondary" onclick="runTool('openDataFolder',this)">Abrir Pasta</button>
             </div>
+          </div>
+
+          <!-- Tool execution log -->
+          <div id="tools-log-wrapper" style="margin-top:24px;display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <span style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.6px">Log de Execução</span>
+              <button class="btn btn-ghost btn-sm" onclick="clearToolsLog()" style="font-size:11px">Limpar</button>
+            </div>
+            <div id="tools-log" style="background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:12px;font-family:monospace;line-height:1.7;max-height:200px;overflow-y:auto;color:var(--text-muted)"></div>
           </div>
         </div>
       </section>

@@ -53,7 +53,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     show:     () => ipcRenderer.invoke('window:show'),
   },
   app: {
-    openMain: () => ipcRenderer.invoke('app:openMain'),
+    openMain:       () => ipcRenderer.invoke('app:openMain'),
+    getVersion:     () => ipcRenderer.invoke('app:getVersion'),
+    getLastRefresh: () => ipcRenderer.invoke('app:getLastRefresh'),
   },
   backup: {
     export: (password) => ipcRenderer.invoke('backup:export', { password }),
@@ -68,7 +70,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     set: (openAtLogin)  => ipcRenderer.invoke('startup:set', { openAtLogin }),
   },
   on:  (ch, fn) => {
-    const valid = ['rankUpdate','apiKeyStatus','notification','closeRequest','navigate','update:status','update:progress'];
+    const valid = ['rankUpdate','apiKeyStatus','notification','closeRequest','navigate','update:status','update:progress','lastRefresh'];
     if (valid.includes(ch)) ipcRenderer.on(ch, (_, ...args) => fn(...args));
   },
   off: (ch, fn) => ipcRenderer.off(ch, fn),

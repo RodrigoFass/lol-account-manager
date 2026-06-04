@@ -211,12 +211,23 @@ const DEFAULT_DATA = () => ({
   accounts: [],
 });
 
+// In-memory data cache — eliminates a synchronous disk read on every readData()
+// call (previously ~200 reads per 50-account refresh cycle).
+// Invariant: _dataCache always equals the last successfully-written state, OR is
+// null (forcing the next readData to load fresh from disk). writeData updates the
+// cache; a failed write invalidates it so the next read reflects the actual disk state.
+let _dataCache = null;
+
 function readData() {
+  if (_dataCache) return _dataCache;
   try {
-    if (fs.existsSync(DATA_PATH))
-      return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+    if (fs.existsSync(DATA_PATH)) {
+      _dataCache = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+      return _dataCache;
+    }
   } catch (e) { console.error('readData:', e.message); }
-  return DEFAULT_DATA();
+  _dataCache = DEFAULT_DATA();
+  return _dataCache;
 }
 
 function writeData(data) {
@@ -226,9 +237,11 @@ function writeData(data) {
   try {
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
     fs.renameSync(tmp, DATA_PATH);
+    _dataCache = data;          // cache the freshly-persisted state
     return true;
   } catch (e) {
     console.error('writeData:', e.message);
+    _dataCache = null;          // invalidate — next read reloads the last good disk state
     // Clean up orphaned .tmp file if it exists
     try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {}
     push('notification', { type: 'error', message: 'Falha ao salvar dados no disco: ' + e.message });
@@ -581,6 +594,8 @@ async function refreshAccount(id) {
   return { currentRank, flexRank };
 }
 
+let lastFullRefresh = 0;   // timestamp of the last completed batch refresh
+
 async function refreshAll() {
   for (const a of getAccounts()) {
     // Use the same lock used by riot:fetchRanking to prevent concurrent refreshes
@@ -590,6 +605,8 @@ async function refreshAll() {
     catch (e) { console.error('refresh err:', e.message); }
     finally { refreshingAccounts.delete(a.id); }
   }
+  lastFullRefresh = Date.now();
+  push('lastRefresh', lastFullRefresh);   // notify renderer (covers background timer refreshes too)
   updateTrayMenu();
 }
 
@@ -768,7 +785,9 @@ ipcMain.handle('auth:changePassword', async (_, { oldPwd, newPwd }) => {
   const ok = await verifyPassword(oldPwd);
   if (!ok) return { success: false, error: 'Senha atual incorreta' };
   try {
-    const data = readData();
+    // Work on a deep clone so a mid-loop failure never leaves the in-memory
+    // cache in a half-re-encrypted state — only writeData() commits the result.
+    const data = JSON.parse(JSON.stringify(readData()));
     const oldKey = encryptionKey;
     const newSalt = generateSalt();
     const newKey  = deriveKey(newPwd, newSalt);
@@ -1114,7 +1133,9 @@ ipcMain.handle('backup:import', async (_, { password }) => {
       catch { return { success: false, error: 'Senha incorreta ou arquivo corrompido' }; }
     }
 
-    const data = readData();
+    // Deep clone so a mid-loop failure never leaves the in-memory cache
+    // with partially-imported accounts — only writeData() commits the result.
+    const data = JSON.parse(JSON.stringify(readData()));
     const existingIds = new Set(data.accounts.map(a => a.id));
     let imported = 0;
 
@@ -1174,6 +1195,9 @@ ipcMain.handle('startup:set', (_, { openAtLogin }) => {
   app.setLoginItemSettings({ openAtLogin });
   return { success: true };
 });
+
+ipcMain.handle('app:getVersion',     () => app.getVersion());
+ipcMain.handle('app:getLastRefresh',  () => lastFullRefresh);
 
 ipcMain.handle('app:openMain', () => {
   createMainWindow();

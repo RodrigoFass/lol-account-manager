@@ -14,12 +14,45 @@ async function init() {
   loadQueueFilterPref();      // preset filter BEFORE first render so columns are right from the start
   loadViewPref();             // restore table/cards toggle preference
   loadDDVersion();            // non-blocking — fire & forget; fallback version already set
+  loadAppVersion();           // sync sidebar version label with package.json (non-blocking)
+  loadLastRefresh();          // restore last batch-refresh time label (non-blocking)
   await loadAccounts();
   await loadSettings();
   loadApiKeyStatus();
   setupEventListeners();
   populateAccountSelects();
 }
+
+// Reads the real app version from the main process so the sidebar label
+// always reflects package.json — no more hardcoded version drift.
+async function loadAppVersion() {
+  try {
+    const v = await api.app.getVersion();
+    const el = document.getElementById('app-version');
+    if (v && el) el.textContent = 'v' + v;
+  } catch { /* keep hardcoded fallback */ }
+}
+
+// Updates the "última atualização" label in the dashboard header.
+// Re-renders relative time every 30s while the dashboard is visible.
+let _lastRefreshTs = 0;
+function updateLastRefreshLabel(ts) {
+  if (ts) _lastRefreshTs = ts;
+  const el = document.getElementById('last-refresh-label');
+  if (!el) return;
+  if (!_lastRefreshTs) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.textContent = '🕒 ' + timeAgo(new Date(_lastRefreshTs).toISOString());
+}
+
+async function loadLastRefresh() {
+  try {
+    const ts = await api.app.getLastRefresh();
+    if (ts) updateLastRefreshLabel(ts);
+  } catch { /* no-op */ }
+}
+// Keep the relative-time label fresh without polling the main process
+setInterval(() => { if (currentSection === 'dashboard' && _lastRefreshTs) updateLastRefreshLabel(); }, 30000);
 
 function loadViewPref() {
   currentView = localStorage.getItem('pref_view') || 'table';
@@ -67,6 +100,10 @@ function setupEventListeners() {
     updateApiKeyUI(status);
     startCountdown(status);
   });
+
+  // Last batch-refresh timestamp — fired after refreshAll completes
+  // (including background auto-refresh triggered by the 15-min timer)
+  api.on('lastRefresh', ts => updateLastRefreshLabel(ts));
 
   api.on('notification', ({ type, message }) => {
     const t = type.includes('rank') ? (type === 'rankUp' ? 'success' : 'error') : 'warning';
