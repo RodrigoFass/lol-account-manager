@@ -276,7 +276,7 @@ function buildRow(a, idx) {
     <td class="drag-handle" title="Arrastar para reordenar">⠿</td>
     <td style="color:var(--text-dim)">${idx}</td>
     <td>
-      <div class="account-name-cell">
+      <div class="account-name-cell account-clickable" onclick="openAccountDetail('${a.id}')" title="Ver análise detalhada">
         ${iconImg}${iconPlaceholder}
         <div>
           <div class="account-name">${escHtml(a.nickname)} ${watchBadge}</div>
@@ -327,7 +327,7 @@ function buildCard(a) {
   return `
   <div class="account-card${isChecked ? ' card-selected' : ''}" id="card-${a.id}">
     <input type="checkbox" class="card-compare-cb compare-checkbox" data-id="${a.id}" ${isChecked ? 'checked' : ''} onchange="toggleCompare(this)" title="Selecionar para comparar">
-    <div class="card-top">
+    <div class="card-top account-clickable" onclick="openAccountDetail('${a.id}')" title="Ver análise detalhada">
       ${iconHtml}
       <div class="card-identity">
         <div class="card-name">${escHtml(a.nickname)} ${isWatched ? '<span class="watched-badge">👁️</span>' : ''}</div>
@@ -1363,7 +1363,8 @@ function refreshLiveGame() {
 // PLAYER DEEP-DIVE DETAIL MODAL
 // ══════════════════════════════════════════════════════════════
 let _detailData   = null;   // last loaded player-details payload
-let _detailPlayer = null;   // the live-game player object being inspected
+let _detailPlayer = null;   // the player object being inspected
+let _detailCtx    = null;   // { server, queueMode, championNow } — works for live game AND accounts
 
 function _champIconUrl(image) {
   return image ? `https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/champion/${image}.png` : '';
@@ -1372,18 +1373,54 @@ function _profileIconUrl(id) {
   return id != null ? `https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/profileicon/${id}.png` : '';
 }
 
+// The rank shown in the detail's "Elo Atual" section, based on context queue mode.
+function _detailRank(p) {
+  const mode = _detailCtx?.queueMode;
+  if (mode === 'flex') return p.flex;
+  if (mode === 'solo') return p.solo;
+  return _bestRank(p);   // 'other'/accounts → best available
+}
+
+// Entry from the LIVE GAME — player already has rank/level loaded
 async function openPlayerDetail(puuid) {
   const p = _liveGame?.players.find(x => x.puuid === puuid);
   if (!p || p.anonymous) return;   // anonymous players have nothing to fetch
+  _detailCtx = { server: _liveGame.server, queueMode: _liveGame.queueMode, championNow: p.championName };
+  _openDetailModal(p);
+}
+
+// Entry from the CONTAS tab — build a player-like object from the saved account
+async function openAccountDetail(id) {
+  const a = allAccounts.find(x => x.id === id);
+  if (!a) return;
+  if (!a.puuid) {
+    showToast('Esta conta não tem PUUID salvo. Edite a conta e clique em "🔍 Buscar" primeiro.', 'warning', 5000);
+    return;
+  }
+  const p = {
+    puuid:         a.puuid,
+    riotId:        `${a.nickname}#${a.tag}`,
+    level:         null,
+    profileIconId: a.profileIconId ?? null,
+    championName:  null,
+    solo:          (a.currentRank && a.currentRank.tier !== 'UNRANKED') ? a.currentRank : null,
+    flex:          (a.flexRank   && a.flexRank.tier   !== 'UNRANKED') ? a.flexRank   : null,
+    internalTags:  a.tags || [],
+  };
+  _detailCtx = { server: a.server, queueMode: 'other', championNow: null };  // 'other' → best rank
+  _openDetailModal(p);
+}
+
+async function _openDetailModal(p) {
   _detailPlayer = p; _detailData = null;
   openModal('player-detail-modal');
-  _renderDetailHeader(p);                          // basic + ranked render instantly (already loaded)
+  _renderDetailHeader(p);                          // basic + ranked render instantly (already known)
   const body = document.getElementById('player-detail-body');
   if (body) body.innerHTML = `<div class="lg-loading"><span class="spinner"></span> Carregando análise detalhada...</div>`;
 
-  const res = await api.riot.getPlayerDetails(puuid, _liveGame.server);
+  const res = await api.riot.getPlayerDetails(p.puuid, _detailCtx.server);
   // Guard: user may have closed/switched player while loading
-  if (_detailPlayer?.puuid !== puuid) return;
+  if (_detailPlayer?.puuid !== p.puuid) return;
   if (!res.success) {
     if (body) body.innerHTML = `<div class="lg-empty">⚠️ ${escHtml(res.error || 'Não foi possível carregar os detalhes.')}</div>`;
     return;
@@ -1406,8 +1443,8 @@ function _renderDetailHeader(p) {
       <div class="pd-name">${escHtml(name||'Desconhecido')}<span class="pd-tag">#${escHtml(tag||'')}</span></div>
       <div class="pd-sub">
         ${p.level ? `<span class="lg-level">Nv. ${p.level}</span>` : ''}
-        <span class="pd-region">${escHtml(_liveGame.server || '')}</span>
-        <span class="pd-champ-now">Jogando <strong>${escHtml(p.championName)}</strong></span>
+        <span class="pd-region">${escHtml(_detailCtx?.server || '')}</span>
+        ${_detailCtx?.championNow ? `<span class="pd-champ-now">Jogando <strong>${escHtml(_detailCtx.championNow)}</strong></span>` : ''}
       </div>
     </div>`;
 }
@@ -1428,9 +1465,9 @@ function _renderDetailBody(p, d) {
   const body = document.getElementById('player-detail-body');
   if (!body) return;
 
-  // ── Section: Elo Atual (queue-relevant) ──
-  const rank = _displayRank(p);
-  const qLabel = _liveGame.queueMode === 'flex' ? 'Flex' : 'Solo / Duo';
+  // ── Section: Elo Atual (queue/context-relevant) ──
+  const rank = _detailRank(p);
+  const qLabel = (rank && rank === p.flex) ? 'Flex' : 'Solo / Duo';
   const series = rank?.series
     ? `<div class="pd-series">Série de promoção: ${rank.series.split('').map(c =>
         `<span class="pd-series-dot ${c==='W'?'w':c==='L'?'l':''}">${c==='W'?'V':c==='L'?'D':'•'}</span>`).join('')}</div>`
