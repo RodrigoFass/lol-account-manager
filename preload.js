@@ -71,8 +71,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     import: (password) => ipcRenderer.invoke('backup:import', { password }),
   },
   update: {
-    check:   ()  => ipcRenderer.invoke('update:check'),
-    install: ()  => ipcRenderer.invoke('update:install'),
+    check:    ()  => ipcRenderer.invoke('update:check'),
+    download: ()  => ipcRenderer.invoke('update:download'),
+    install:  ()  => ipcRenderer.invoke('update:install'),
   },
   startup: {
     get: ()             => ipcRenderer.invoke('startup:get'),

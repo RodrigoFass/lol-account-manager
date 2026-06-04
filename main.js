@@ -208,6 +208,7 @@ const DEFAULT_DATA = () => ({
     theme: 'dark',
     closeAction: 'ask',
     notifications: { rankUp: true, rankDown: true, promo: true, apiKeyExpiring: true },
+    autoCheckUpdates: true,
   },
   // User-defined account tags { name, color }. Seeded with two sensible defaults
   // for fresh installs; existing tags on accounts are migrated in migrateTags().
@@ -1772,12 +1773,18 @@ ipcMain.handle('backup:import', async (_, { password }) => {
 });
 
 // — Auto-Update —
-ipcMain.handle('update:check', () => {
-  const ok = updater.checkForUpdates();
-  return { success: ok, message: ok ? 'Verificando...' : 'Auto-update não disponível em desenvolvimento' };
+ipcMain.handle('update:check', async () => {
+  const r = await updater.checkForUpdates();
+  if (r.ok) return { success: true, version: app.getVersion() };
+  if (r.reason === 'dev')         return { success: false, dev: true,  version: app.getVersion(), message: 'Atualização automática só funciona na versão instalada (indisponível em desenvolvimento).' };
+  if (r.reason === 'unavailable') return { success: false, version: app.getVersion(), message: 'Atualizador não disponível nesta build.' };
+  const network = r.kind === 'network';
+  return { success: false, version: app.getVersion(),
+           message: network ? 'Sem conexão — não foi possível verificar atualizações.' : (r.error || 'Não foi possível verificar atualizações.') };
 });
 
-ipcMain.handle('update:install', () => { updater.installUpdate(); return { success: true }; });
+ipcMain.handle('update:download', () => updater.downloadUpdate());
+ipcMain.handle('update:install',  () => { updater.installUpdate(); return { success: true }; });
 
 // — Window controls —
 ipcMain.handle('window:minimize', () => mainWindow?.minimize());
@@ -1828,9 +1835,10 @@ app.whenReady().then(() => {
   powerMonitor.on('resume',        () => { if (isLoggedIn) push('apiKeyStatus', apiKeyStatus()); });
   powerMonitor.on('unlock-screen', () => { if (isLoggedIn) push('apiKeyStatus', apiKeyStatus()); });
 
-  // Auto-update: inicializa e verifica 8s após o start (para não travar o boot)
+  // Auto-update: inicializa e (se habilitado) verifica 8s após o start
   updater.setupUpdater(push);
-  setTimeout(() => updater.checkForUpdates(), 8000);
+  const autoCheck = readData().settings?.autoCheckUpdates !== false;  // default: ligado
+  if (autoCheck) setTimeout(() => updater.checkForUpdates(), 8000);
 });
 
 app.on('before-quit', () => {

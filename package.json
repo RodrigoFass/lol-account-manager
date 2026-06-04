@@ -82,7 +82,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "rotriguin",
+      "owner": "RodrigoFass",
       "repo": "lol-account-manager"
     }
   },

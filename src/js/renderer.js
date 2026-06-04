@@ -132,52 +132,98 @@ function setupEventListeners() {
   api.on('navigate', section => navigate(section));
 
   // Auto-update events
-  api.on('update:status', ({ status, version, error }) => {
-    const statusText   = document.getElementById('update-status-text');
-    const installRow   = document.getElementById('install-update-row');
-    const progressRow  = document.getElementById('download-progress-row');
-    const versionText  = document.getElementById('update-version-text');
-    const checkBtn     = document.getElementById('check-update-btn');
-
-    if (!statusText) return;
-
-    if (progressRow) progressRow.style.display = 'none';
-    if (installRow)  installRow.style.display  = 'none';
-
-    switch (status) {
-      case 'checking':
-        statusText.textContent = 'Verificando novas versões...';
-        if (checkBtn) { checkBtn.disabled = true; checkBtn.textContent = '⏳ Verificando...'; }
-        break;
-      case 'upToDate':
-        statusText.textContent = '✅ O app está atualizado!';
-        if (checkBtn) { checkBtn.disabled = false; checkBtn.textContent = '🔄 Verificar'; }
-        break;
-      case 'available':
-        statusText.textContent = `Nova versão ${version} disponível! Baixando em background...`;
-        if (checkBtn) { checkBtn.disabled = false; checkBtn.textContent = '🔄 Verificar'; }
-        if (progressRow) progressRow.style.display = '';
-        break;
-      case 'downloaded':
-        statusText.textContent = `v${version} baixada e pronta para instalar.`;
-        if (versionText) versionText.textContent = `Versão ${version} — reinicie para aplicar.`;
-        if (installRow)  installRow.style.display  = '';
-        if (checkBtn) { checkBtn.disabled = false; checkBtn.textContent = '🔄 Verificar'; }
-        showToast(`Nova versão v${version} disponível! Vá em Configurações → Atualizações.`, 'info', 6000);
-        break;
-      case 'error':
-        statusText.textContent = `Erro ao verificar: ${error || 'desconhecido'}`;
-        if (checkBtn) { checkBtn.disabled = false; checkBtn.textContent = '🔄 Verificar'; }
-        break;
-    }
-  });
-
+  api.on('update:status', s => handleUpdateStatus(s));
   api.on('update:progress', ({ percent }) => {
     const bar  = document.getElementById('download-progress-bar');
     const text = document.getElementById('download-progress-text');
-    if (bar)  bar.style.width    = `${percent}%`;
-    if (text) text.textContent   = `${percent}%`;
+    if (bar)  bar.style.width  = `${percent}%`;
+    if (text) text.textContent = `${percent}%`;
   });
+}
+
+// ── Update UI state machine ───────────────────────────────────
+let _updateAvailableVersion = null;
+
+function _setUpdateLastCheck() {
+  const el = document.getElementById('update-last-check');
+  if (el) el.textContent = 'agora';
+}
+
+function handleUpdateStatus({ status, version, currentVersion, releaseDate, releaseNotes, error, kind }) {
+  const $ = id => document.getElementById(id);
+  const title   = $('update-status-title');
+  const text    = $('update-status-text');
+  const checkBtn= $('check-update-btn');
+  const availRow= $('update-available-row');
+  const progRow = $('download-progress-row');
+  const instRow = $('install-update-row');
+  if (!text) return;
+
+  if (currentVersion && $('update-current-version')) $('update-current-version').textContent = 'v' + currentVersion;
+
+  // reset transient rows; the matching case re-shows what it needs
+  const resetBtn = () => { if (checkBtn) { checkBtn.disabled = false; checkBtn.textContent = '🔄 Verificar'; } };
+
+  switch (status) {
+    case 'checking':
+      if (title) title.textContent = 'Verificando atualizações';
+      text.textContent = 'Procurando novas versões...';
+      if (checkBtn) { checkBtn.disabled = true; checkBtn.textContent = '⏳ Verificando...'; }
+      break;
+
+    case 'upToDate':
+      _setUpdateLastCheck(); resetBtn();
+      if (title) title.textContent = '✅ Aplicativo atualizado';
+      text.textContent = 'Você já está utilizando a versão mais recente.';
+      if (availRow) availRow.style.display = 'none';
+      if (progRow)  progRow.style.display  = 'none';
+      if (instRow)  instRow.style.display  = 'none';
+      break;
+
+    case 'available': {
+      _setUpdateLastCheck(); resetBtn();
+      _updateAvailableVersion = version;
+      if (title) title.textContent = '⚠️ Atualização disponível';
+      text.textContent = `Há uma nova versão do aplicativo.`;
+      if (availRow) availRow.style.display = 'flex';
+      if (progRow)  progRow.style.display  = 'none';
+      if (instRow)  instRow.style.display  = 'none';
+      const sub  = $('update-available-sub');
+      const date = releaseDate ? ` · ${new Date(releaseDate).toLocaleDateString('pt-BR')}` : '';
+      if (sub) sub.textContent = `v${currentVersion || ''} → v${version}${date}`;
+      const notes = $('update-release-notes');
+      if (notes) {
+        if (releaseNotes && releaseNotes.trim()) {
+          notes.textContent = releaseNotes.replace(/<[^>]+>/g, '').trim();
+          notes.style.display = '';
+        } else notes.style.display = 'none';
+      }
+      const dlBtn = $('download-update-btn');
+      if (dlBtn) { dlBtn.disabled = false; dlBtn.textContent = '⬇️ Baixar e Instalar'; }
+      showToast(`Nova versão v${version} disponível! Veja em Configurações → Atualizações.`, 'info', 6000);
+      break;
+    }
+
+    case 'downloaded':
+      resetBtn();
+      if (title) title.textContent = '✅ Pronto para instalar';
+      text.textContent = 'A atualização foi baixada e verificada.';
+      if (availRow) availRow.style.display = 'none';
+      if (progRow)  progRow.style.display  = 'none';
+      if (instRow)  instRow.style.display  = '';
+      if ($('update-version-text')) $('update-version-text').textContent = `Versão ${version} — reinicie para aplicar.`;
+      showToast(`v${version} baixada! Clique em "Instalar e Reiniciar".`, 'success', 6000);
+      break;
+
+    case 'error':
+      _setUpdateLastCheck(); resetBtn();
+      if (title) title.textContent = '❌ Não foi possível verificar';
+      text.textContent = kind === 'network'
+        ? 'Sem conexão — verifique sua internet e tente novamente.'
+        : `Falha ao verificar atualizações: ${error || 'erro desconhecido'}`;
+      if (progRow) progRow.style.display = 'none';
+      break;
+  }
 }
 
 // ── Navigation ────────────────────────────────────────────────
@@ -1020,6 +1066,12 @@ async function loadSettingsUI() {
   // Startup toggle — read directly from OS registry via main process
   const startup = await api.startup.get();
   el('startup-toggle').checked = startup.openAtLogin;
+  // Auto-check updates toggle + installed version
+  if (el('auto-check-updates')) el('auto-check-updates').checked = s.autoCheckUpdates !== false;
+  try {
+    const v = await api.app.getVersion();
+    if (v && el('update-current-version')) el('update-current-version').textContent = 'v' + v;
+  } catch {}
   // Tags manager
   await loadTags();
   renderTagsManager();
@@ -1092,17 +1144,46 @@ async function checkForUpdates() {
   const btn = document.getElementById('check-update-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
   const res = await api.update.check();
+  if (res.version && document.getElementById('update-current-version'))
+    document.getElementById('update-current-version').textContent = 'v' + res.version;
+  // On success, the 'checking'/'available'/'upToDate' push events drive the UI.
+  // Only handle the immediate failure (dev mode, no updater, network) here.
   if (!res.success) {
-    showToast(res.message || 'Auto-update não disponível.', 'info');
     if (btn) { btn.disabled = false; btn.textContent = '🔄 Verificar'; }
-    const el = document.getElementById('update-status-text');
-    if (el) el.textContent = res.message || 'Indisponível em modo de desenvolvimento.';
+    const title = document.getElementById('update-status-title');
+    const text  = document.getElementById('update-status-text');
+    if (title) title.textContent = res.dev ? 'ℹ️ Indisponível em desenvolvimento' : '❌ Não foi possível verificar';
+    if (text)  text.textContent  = res.message || 'Não foi possível verificar atualizações.';
+    document.getElementById('update-last-check').textContent = 'agora';
+    showToast(res.message || 'Não foi possível verificar atualizações.', res.dev ? 'info' : 'warning', 5000);
   }
+}
+
+async function downloadUpdate() {
+  const btn = document.getElementById('download-update-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Baixando...'; }
+  const availRow = document.getElementById('update-available-row');
+  const progRow  = document.getElementById('download-progress-row');
+  if (availRow) availRow.style.display = 'none';
+  if (progRow)  progRow.style.display  = 'flex';
+  const res = await api.update.download();
+  if (res && res.ok === false) {
+    showToast('Erro ao baixar a atualização.', 'error');
+    if (progRow)  progRow.style.display  = 'none';
+    if (availRow) availRow.style.display = 'flex';
+    if (btn) { btn.disabled = false; btn.textContent = '⬇️ Baixar e Instalar'; }
+  }
+  // success → 'download-progress' + 'downloaded' push events drive the rest
 }
 
 function installUpdate() {
   showToast('Instalando atualização... O app será reiniciado.', 'info', 4000);
   setTimeout(() => api.update.install(), 1500);
+}
+
+async function saveAutoCheck(value) {
+  await api.settings.set('autoCheckUpdates', value);
+  showToast(value ? 'Verificação automática ativada.' : 'Verificação automática desativada.', 'success', 2500);
 }
 
 async function changePassword() {

@@ -441,18 +441,27 @@
             <div class="settings-section-title">Atualizações</div>
             <div class="settings-row">
               <div class="settings-row-info">
-                <strong>Verificar Atualizações</strong>
+                <strong id="update-status-title">Verificar Atualizações</strong>
                 <span id="update-status-text">Clique para verificar se há uma nova versão disponível.</span>
+                <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:11.5px;color:var(--text-dim)">
+                  <span>Versão instalada: <b id="update-current-version" style="color:var(--text-muted)">—</b></span>
+                  <span>Última verificação: <b id="update-last-check" style="color:var(--text-muted)">nunca</b></span>
+                </div>
               </div>
               <button class="btn btn-secondary btn-sm" onclick="checkForUpdates()" id="check-update-btn">🔄 Verificar</button>
             </div>
-            <div class="settings-row" id="install-update-row" style="display:none">
-              <div class="settings-row-info">
-                <strong>🎉 Nova Versão Disponível!</strong>
-                <span id="update-version-text"></span>
+
+            <!-- New version available → download -->
+            <div class="settings-row" id="update-available-row" style="display:none;flex-direction:column;align-items:flex-start;gap:10px">
+              <div class="settings-row-info" style="width:100%">
+                <strong id="update-available-title">🎉 Nova versão disponível</strong>
+                <span id="update-available-sub"></span>
+                <pre id="update-release-notes" style="display:none;margin-top:8px;max-height:120px;overflow:auto;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:11.5px;font-family:inherit;white-space:pre-wrap;color:var(--text-secondary);line-height:1.5"></pre>
               </div>
-              <button class="btn btn-primary btn-sm" onclick="installUpdate()">⬇️ Instalar e Reiniciar</button>
+              <button class="btn btn-primary btn-sm" id="download-update-btn" onclick="downloadUpdate()">⬇️ Baixar e Instalar</button>
             </div>
+
+            <!-- Download progress -->
             <div class="settings-row" id="download-progress-row" style="display:none">
               <div class="settings-row-info" style="width:100%">
                 <strong>Baixando atualização...</strong>
@@ -461,6 +470,27 @@
                 </div>
                 <span id="download-progress-text" style="font-size:11px;color:var(--text-dim);margin-top:4px;display:block">0%</span>
               </div>
+            </div>
+
+            <!-- Downloaded → install -->
+            <div class="settings-row" id="install-update-row" style="display:none">
+              <div class="settings-row-info">
+                <strong>✅ Atualização baixada</strong>
+                <span id="update-version-text"></span>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="installUpdate()">🔁 Instalar e Reiniciar</button>
+            </div>
+
+            <!-- Auto-check toggle -->
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <strong>Verificar ao iniciar</strong>
+                <span>Procurar atualizações automaticamente ao abrir o aplicativo</span>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="auto-check-updates" onchange="saveAutoCheck(this.checked)">
+                <span class="toggle-slider"></span>
+              </label>
             </div>
           </div>
 
