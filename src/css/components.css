@@ -85,6 +85,8 @@
   flex-shrink: 0;
 }
 .btn-icon:hover                    { background: var(--bg-hover); color: var(--text-primary); }
+.btn-icon:disabled                 { opacity: 0.4; cursor: default; }
+.btn-icon:disabled:hover           { background: transparent; }
 .btn-icon.btn-icon-danger:hover    { background: rgba(239,68,68,0.12); color: var(--danger); }
 .btn-icon.btn-icon-success:hover   { background: rgba(34,197,94,0.12); color: var(--success); }
 
