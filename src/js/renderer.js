@@ -142,8 +142,6 @@ function setupEventListeners() {
 }
 
 // ── Update UI state machine ───────────────────────────────────
-let _updateAvailableVersion = null;
-
 function _setUpdateLastCheck() {
   const el = document.getElementById('update-last-check');
   if (el) el.textContent = 'agora';
@@ -182,7 +180,6 @@ function handleUpdateStatus({ status, version, currentVersion, releaseDate, rele
 
     case 'available': {
       _setUpdateLastCheck(); resetBtn();
-      _updateAvailableVersion = version;
       if (title) title.textContent = '⚠️ Atualização disponível';
       text.textContent = `Há uma nova versão do aplicativo.`;
       if (availRow) availRow.style.display = 'flex';
@@ -1133,6 +1130,7 @@ async function importBackup() {
   if (res.success) {
     showToast(`✅ ${res.imported} de ${res.total} conta(s) importada(s)!`, 'success', 5000);
     document.getElementById('backup-import-pwd').value = '';
+    await loadTags();      // imported tag definitions/colors
     await loadAccounts();
   } else {
     showToast(res.error || 'Erro ao importar backup.', 'error');

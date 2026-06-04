@@ -771,6 +771,10 @@ async function _loadPlayerDetails(puuid, server) {
     trends: { recentWinrate, total, wins, losses: total - wins, streak, streakType, distinctChamps },
     profile, matchError,
   };
+  // Cap cache size — drop the oldest entry past the limit (Map keeps insertion order)
+  if (_playerDetailsCache.size >= 60) {
+    _playerDetailsCache.delete(_playerDetailsCache.keys().next().value);
+  }
   _playerDetailsCache.set(puuid, { ts: Date.now(), data });
   console.log(`[perf] player details ${puuid.slice(0, 8)}: ${recentMatches.length} partidas em ${Date.now() - _t0}ms`);
   return data;
@@ -1702,6 +1706,7 @@ ipcMain.handle('backup:export', async (_, { password }) => {
       salt:       portableSalt,
       accounts:   exportAccounts,
       settings:   data.settings,
+      tags:       data.tags || [],   // carry tag definitions (name+color) for portability
     };
 
     fs.writeFileSync(filePath, JSON.stringify(backup, null, 2), 'utf8');
@@ -1765,6 +1770,20 @@ ipcMain.handle('backup:import', async (_, { password }) => {
         console.warn(`[import] skipped account ${a.id} (${a.nickname}) — credentials corrupted: ${e.message}`);
       }
     }
+
+    // Merge imported tag definitions (by name) so colors/manager carry over,
+    // then migrate any account tag names not yet defined.
+    if (Array.isArray(raw.tags)) {
+      if (!Array.isArray(data.tags)) data.tags = [];
+      const have = new Set(data.tags.map(t => t.name.toLowerCase()));
+      for (const t of raw.tags) {
+        if (t && t.name && !have.has(t.name.toLowerCase())) {
+          data.tags.push({ name: t.name, color: t.color || '#6b6b88' });
+          have.add(t.name.toLowerCase());
+        }
+      }
+    }
+    migrateTags(data);   // catch tag names used by imported accounts but undefined
 
     writeData(data);
     updateTrayMenu();

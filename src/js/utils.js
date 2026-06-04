@@ -143,7 +143,8 @@ function _escTag(s) {
 }
 function tagBadge(tag) {
   if (!tag) return '';
-  const color = _TAG_COLORS[String(tag).toLowerCase()] || '#6b6b88';
+  let color = _TAG_COLORS[String(tag).toLowerCase()] || '#6b6b88';
+  if (!/^#[0-9a-f]{6}$/i.test(color)) color = '#6b6b88';   // only allow valid hex
   const style = `background:${_hexToRgba(color, 0.16)};color:${color};border:1px solid ${_hexToRgba(color, 0.32)}`;
   return `<span class="tag" style="${style}">${_escTag(tag)}</span>`;
 }
