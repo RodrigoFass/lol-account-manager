@@ -286,7 +286,7 @@ function publicAccount(a) {
     puuid: a.puuid, summonerId: a.summonerId, profileIconId: a.profileIconId ?? null,
     currentRank: a.currentRank, flexRank: a.flexRank || null, champions: a.champions,
     history: a.history || [], flexHistory: a.flexHistory || [], lastUpdated: a.lastUpdated,
-    inGame: a.inGame || false,
+    inGame: a.inGame || false, backfilled: a.backfilled || false,
     accountType: a.accountType || 'full',
   };
 }
@@ -700,6 +700,135 @@ async function getPlayerDetails(puuid, server) {
   };
   _playerDetailsCache.set(puuid, { ts: Date.now(), data });
   return data;
+}
+
+// ── Season history reconstruction (backfill) ─────────────────
+// Riot's API has NO historical-rank endpoint — league-v4 only returns the
+// CURRENT rank. The only past data is match-v5 (match list + win/loss + date).
+// So we reconstruct an APPROXIMATE elo line by walking backward from the real
+// current rank through real match results, ±LP_STEP per game. Reconstructed
+// points are flagged { reconstructed: true } and drawn dashed in the UI.
+const LP_STEP            = 20;     // average LP per ranked game (approximation)
+const BACKFILL_MAX       = 60;     // max ranked matches sampled for reconstruction
+const DIVISIONS          = ['IV', 'III', 'II', 'I'];
+
+function _tierScore(tier, division, lp) {
+  const idx = TIER_ORDER.indexOf(tier);
+  if (idx < 0) return null;
+  const divMap = { IV: 0, III: 1, II: 2, I: 3 };
+  return idx * 400 + (divMap[division] ?? 0) * 100 + (lp || 0);
+}
+// Inverse — only reliable for Iron..Diamond (apex tiers have no 100-LP divisions)
+function _scoreToRank(score) {
+  score = Math.max(0, Math.min(score, 7 * 400 - 1));   // clamp to Iron IV..Diamond I
+  const idx    = Math.floor(score / 400);
+  const rem    = score - idx * 400;
+  const divIdx = Math.min(3, Math.floor(rem / 100));
+  const lp     = Math.max(0, Math.min(99, rem - divIdx * 100));
+  return { tier: TIER_ORDER[idx], division: DIVISIONS[divIdx], lp };
+}
+
+// Reconstruct a history array for one queue from the real current rank + matches.
+// `matches` must be chronological (oldest → newest), each { win, remake, ts }.
+function _reconstructQueue(currentRank, matches) {
+  if (!currentRank || currentRank.tier === 'UNRANKED') return [];
+  const idx = TIER_ORDER.indexOf(currentRank.tier);
+  if (idx < 0 || idx >= 7) return [];   // apex (Master+) can't be reconstructed reliably
+  if (!matches.length)      return [];
+
+  const curScore = _tierScore(currentRank.tier, currentRank.division, currentRank.lp);
+  // scoreAfter[i] = score right after match i. Newest match → current score.
+  const scoreAfter = new Array(matches.length);
+  scoreAfter[matches.length - 1] = curScore;
+  for (let i = matches.length - 2; i >= 0; i--) {
+    const next = matches[i + 1];
+    // undo the NEXT match to get the score that existed before it
+    if (next.remake)      scoreAfter[i] = scoreAfter[i + 1];
+    else if (next.win)    scoreAfter[i] = scoreAfter[i + 1] - LP_STEP; // win raised it
+    else                  scoreAfter[i] = scoreAfter[i + 1] + LP_STEP; // loss lowered it
+  }
+  return matches.map((m, i) => {
+    const r = _scoreToRank(scoreAfter[i]);
+    return { timestamp: new Date(m.ts).toISOString(), tier: r.tier, division: r.division, lp: r.lp, reconstructed: true };
+  });
+}
+
+// Merge reconstructed (past) entries before the earliest real tracked entry.
+function _mergeReconstructed(existing, reconstructed) {
+  const real = (existing || []).filter(h => !h.reconstructed);
+  if (!reconstructed.length) return real;
+  const earliestRealTs = real.length ? new Date(real[0].timestamp).getTime() : Infinity;
+  // keep reconstructed points strictly before the first real point, deduped consecutively
+  const past = reconstructed.filter(h => new Date(h.timestamp).getTime() < earliestRealTs);
+  const merged = past.concat(real);
+  // collapse consecutive identical (tier+division+lp) points
+  return merged.filter((h, i) => {
+    if (i === 0) return true;
+    const p = merged[i - 1];
+    return h.tier !== p.tier || h.division !== p.division || h.lp !== p.lp;
+  });
+}
+
+async function backfillHistory(id, force = false) {
+  const snap = readData();
+  const acct = snap.accounts.find(a => a.id === id);
+  if (!acct)                       return { success: false, error: 'Conta não encontrada' };
+  if (acct.backfilled && !force)   return { success: true, skipped: true };
+  if (!acct.puuid)                 return { success: false, error: 'PUUID_REQUIRED' };
+
+  const apiKey = await getApiKey();
+  if (!apiKey) return { success: false, error: 'API Key não configurada' };
+  const region = REGIONAL_ROUTING[acct.server] || 'americas';
+
+  // Fetch ranked match list (solo + flex mixed), then split by queue
+  let solo = [], flex = [];
+  try {
+    const ids = await riotRequest(
+      `https://${region}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(acct.puuid)}/ids?type=ranked&start=0&count=${BACKFILL_MAX}`, apiKey);
+    const settled = await Promise.allSettled((ids || []).map(mid =>
+      riotRequest(`https://${region}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(mid)}`, apiKey)));
+    for (const r of settled) {
+      if (r.status !== 'fulfilled') continue;
+      const info = r.value?.info;
+      const me   = info?.participants?.find(pp => pp.puuid === acct.puuid);
+      if (!info || !me) continue;
+      const entry = {
+        win:    me.win,
+        remake: me.gameEndedInEarlySurrender === true || (info.gameDuration || 0) < 300,
+        ts:     info.gameEndTimestamp || info.gameCreation || Date.now(),
+      };
+      if (info.queueId === 420)      solo.push(entry);
+      else if (info.queueId === 440) flex.push(entry);
+    }
+  } catch (e) {
+    return { success: false, error: (e.message || 'Erro ao buscar partidas').replace(/^STEP:\S+ → /, '') };
+  }
+
+  solo.sort((a, b) => a.ts - b.ts);
+  flex.sort((a, b) => a.ts - b.ts);
+
+  const reconSolo = _reconstructQueue(acct.currentRank, solo);
+  const reconFlex = _reconstructQueue(acct.flexRank,    flex);
+
+  // Atomic write
+  const live     = readData();
+  const liveAcct = live.accounts.find(a => a.id === id);
+  if (!liveAcct) return { success: false, error: 'Conta removida durante reconstrução' };
+  liveAcct.history     = _mergeReconstructed(liveAcct.history,     reconSolo);
+  liveAcct.flexHistory = _mergeReconstructed(liveAcct.flexHistory, reconFlex);
+  liveAcct.backfilled  = true;
+  writeData(live);
+
+  // Tell the renderer to reload so the reconstructed points appear in the chart
+  if (reconSolo.length || reconFlex.length) push('historyUpdated', { accountId: id });
+
+  return {
+    success: true,
+    soloPoints: reconSolo.length,
+    flexPoints: reconFlex.length,
+    soloApex:   acct.currentRank && TIER_ORDER.indexOf(acct.currentRank.tier) >= 7,
+    flexApex:   acct.flexRank && TIER_ORDER.indexOf(acct.flexRank.tier) >= 7,
+  };
 }
 
 async function getApiKey() {
@@ -1147,6 +1276,12 @@ ipcMain.handle('riot:fetchRanking', async (_, id) => {
   try {
     const rankData = await refreshAccount(id);
     updateTrayMenu();
+    // First-time season backfill — reconstruct elo history from match history.
+    // Runs once per account (guarded by the `backfilled` flag), best-effort.
+    try {
+      const a = readData().accounts.find(x => x.id === id);
+      if (a && !a.backfilled && a.puuid) await backfillHistory(id);
+    } catch (e) { console.error('[backfill]', e.message); }
     return { success: true, rankData };
   } catch (e) {
     if (e.status === 401 || e.status === 403) {
@@ -1156,6 +1291,13 @@ ipcMain.handle('riot:fetchRanking', async (_, id) => {
   } finally {
     refreshingAccounts.delete(id);
   }
+});
+
+// Manual re-run of the season backfill (force = rebuild even if already done)
+ipcMain.handle('riot:backfillHistory', async (_, id) => {
+  if (!isLoggedIn) return { success: false, error: 'Não autenticado' };
+  try { return await backfillHistory(id, true); }
+  catch (e) { return { success: false, error: (e.message || 'Erro').replace(/^STEP:\S+ → /, '') }; }
 });
 
 ipcMain.handle('riot:fetchAllRankings', async () => {

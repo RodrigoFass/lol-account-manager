@@ -196,7 +196,11 @@
               <button class="chart-btn range-btn active" onclick="setHistoryRange('week',this)">7 dias</button>
               <button class="chart-btn range-btn" onclick="setHistoryRange('month',this)">30 dias</button>
               <button class="chart-btn range-btn" onclick="setHistoryRange('all',this)">Tudo</button>
+              <button class="chart-btn" id="rebuild-history-btn" onclick="rebuildSeasonHistory(this)" title="Reconstruir o histórico da temporada a partir do match history">⟲ Reconstruir temporada</button>
             </div>
+          </div>
+          <div id="history-disclaimer" style="display:none;font-size:11.5px;color:var(--text-muted);background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;margin-bottom:14px;line-height:1.5">
+            <span style="color:var(--warning)">⌐ Trecho tracejado:</span> reconstruído a partir do histórico de partidas ranqueadas (Riot não fornece LP histórico). O LP é aproximado (±~20 por jogo); promoções e rebaixamentos de divisão são reais. Apex (Mestre+) não é reconstruído.
           </div>
           <div id="history-empty" class="empty-state">
             <div class="empty-icon">📈</div>

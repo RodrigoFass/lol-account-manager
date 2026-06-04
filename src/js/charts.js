@@ -89,6 +89,31 @@ async function loadHistory() {
   renderHistoryChart(account);
 }
 
+// Manual season reconstruction from match history (force re-run)
+async function rebuildSeasonHistory(btn) {
+  if (!currentHistoryAccount) { showToast('Selecione uma conta primeiro.', 'warning'); return; }
+  const id   = currentHistoryAccount.id;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Reconstruindo...';
+  const res = await api.riot.backfillHistory(id);
+  btn.disabled = false; btn.textContent = orig;
+
+  if (!res.success) {
+    const msg = (res.error || '').includes('PUUID')
+      ? 'Esta conta precisa de PUUID. Edite a conta e clique em "🔍 Buscar" primeiro.'
+      : (res.error || 'Não foi possível reconstruir o histórico.');
+    showToast(msg, 'error', 6000);
+    return;
+  }
+  const pts = (res.soloPoints || 0) + (res.flexPoints || 0);
+  if (pts) showToast(`✅ ${pts} ponto(s) reconstruído(s) do histórico de partidas.`, 'success', 5000);
+  else     showToast('Nenhum dado adicional disponível para reconstruir (apex ou sem partidas).', 'info', 5000);
+
+  allAccounts = await api.accounts.getAll();
+  currentHistoryAccount = allAccounts.find(a => a.id === id) || currentHistoryAccount;
+  renderHistoryChart(currentHistoryAccount);
+}
+
 // ── Data helpers ──────────────────────────────────────────────
 
 function filterHistoryData(history) {
@@ -174,6 +199,13 @@ function renderHistoryChart(account) {
   renderHistorySummary(account, data);
   buildHistoryChart(account, data);
   renderHistoryTimeline(data);
+
+  // Disclaimer when part of the line was reconstructed from match history
+  const disc = document.getElementById('history-disclaimer');
+  if (disc) {
+    const hasRecon = data.some(h => h.reconstructed);
+    disc.style.display = hasRecon ? '' : 'none';
+  }
 }
 
 // ── Summary cards ─────────────────────────────────────────────
@@ -280,6 +312,8 @@ function buildHistoryChart(account, data) {
   // Each line segment takes the color of the tier at its END point — so the
   // line switches to the new tier's color exactly at the promotion/demotion.
   const segmentColor = ctx => tierLineColor(_chartData[ctx.p1DataIndex]?.tier, light);
+  // Reconstructed (pre-tracking, from match history) segments are dashed.
+  const segmentDash  = ctx => _chartData[ctx.p1DataIndex]?.reconstructed ? [5, 4] : [];
 
   const chartLabel = `${account.nickname}#${account.tag} — ${historyQueue === 'flex' ? 'Flex' : 'Solo/Duo'}`;
 
@@ -292,6 +326,7 @@ function buildHistoryChart(account, data) {
     ds.label                        = chartLabel;
     ds.borderColor                  = lastColor;
     ds.segment.borderColor          = segmentColor;
+    ds.segment.borderDash           = segmentDash;
     ds.pointBackgroundColor         = ptColors;
     ds.pointBorderColor             = ptBorder;
     ds.pointRadius                  = ptRadius;
@@ -324,7 +359,7 @@ function buildHistoryChart(account, data) {
         label:                chartLabel,
         data:                 values,
         borderColor:          lastColor,
-        segment:              { borderColor: segmentColor },
+        segment:              { borderColor: segmentColor, borderDash: segmentDash },
         backgroundColor:      tc.fill,
         borderWidth:          2.5,
         pointBackgroundColor: ptColors,

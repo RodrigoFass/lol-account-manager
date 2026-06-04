@@ -107,6 +107,16 @@ function setupEventListeners() {
   // (including background auto-refresh triggered by the 15-min timer)
   api.on('lastRefresh', ts => updateLastRefreshLabel(ts));
 
+  // Season backfill finished — refresh in-memory accounts and re-render the
+  // history chart if the user is viewing the affected account
+  api.on('historyUpdated', async ({ accountId }) => {
+    allAccounts = await api.accounts.getAll();
+    if (currentSection === 'history' && currentHistoryAccount?.id === accountId) {
+      currentHistoryAccount = allAccounts.find(a => a.id === accountId) || currentHistoryAccount;
+      renderHistoryChart(currentHistoryAccount);
+    }
+  });
+
   api.on('notification', ({ type, message }) => {
     const t = type.includes('rank') ? (type === 'rankUp' ? 'success' : 'error') : 'warning';
     showToast(message, t);
