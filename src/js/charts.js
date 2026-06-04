@@ -15,6 +15,28 @@ const TIER_CHART_COLORS = {
   UNRANKED:    '#555577',
 };
 
+// Darker variants for the light theme so pale tiers (silver/gold/challenger)
+// keep enough contrast on a white background.
+const TIER_CHART_COLORS_LIGHT = {
+  IRON:        '#6a6a6a',
+  BRONZE:      '#9a4f24',
+  SILVER:      '#7d7d92',
+  GOLD:        '#b07d1e',
+  PLATINUM:    '#00897b',
+  EMERALD:     '#00875a',
+  DIAMOND:     '#4257c4',
+  MASTER:      '#8a35d0',
+  GRANDMASTER: '#d62d44',
+  CHALLENGER:  '#c79320',
+  UNRANKED:    '#9090a0',
+};
+
+// Returns the line/point color for a tier, theme-aware.
+function tierLineColor(tier, light) {
+  const map = light ? TIER_CHART_COLORS_LIGHT : TIER_CHART_COLORS;
+  return map[tier] || (light ? '#888' : '#c0392b');
+}
+
 let historyChart          = null;
 let historyRange          = 'week';
 let historyQueue          = 'solo';  // 'solo' | 'flex'
@@ -219,12 +241,18 @@ function renderHistorySummary(account, data) {
 
 // ── Chart ─────────────────────────────────────────────────────
 
+// Detect a tier change at index i (vs the previous point)
+function _tierChangedAt(data, i) {
+  return i > 0 && data[i].tier !== data[i - 1].tier;
+}
+
 function buildHistoryChart(account, data) {
   const canvas = document.getElementById('history-chart');
   if (!canvas) return;
 
-  // Always update module-level reference so tooltip callbacks get fresh data
+  // Always update module-level reference so tooltip + segment callbacks use fresh data
   _chartData = data;
+  const light = document.body.classList.contains('theme-light');
 
   const labels = data.map(h => {
     const d = new Date(h.timestamp);
@@ -238,13 +266,21 @@ function buildHistoryChart(account, data) {
   const yMin   = Math.max(0, Math.floor((rawMin - pad - 50) / 100) * 100);
   const yMax   = Math.ceil((rawMax + pad + 50) / 100) * 100;
 
-  const tierColor = TIER_CHART_COLORS[data[data.length - 1].tier] || '#c0392b';
-  const ptColors  = values.map((v, i) =>
-    i === 0             ? tierColor
-    : v > values[i - 1] ? '#2ecc71'
-    : v < values[i - 1] ? '#e74c3c'
-    :                      tierColor
-  );
+  const baseR     = data.length <= 30 ? 4 : 2;
+  const ringColor = light ? '#ffffff' : '#0c0c10';
+
+  // Per-point styling: color = tier of that point; tier-change points get a
+  // larger marker with a contrasting ring (promotion/demotion indicator).
+  const ptColors   = data.map(h => tierLineColor(h.tier, light));
+  const ptRadius   = data.map((h, i) => _tierChangedAt(data, i) ? 6 : baseR);
+  const ptBorder   = data.map((h, i) => _tierChangedAt(data, i) ? ringColor : tierLineColor(h.tier, light));
+  const ptBorderW  = data.map((h, i) => _tierChangedAt(data, i) ? 2.5 : 1);
+  const lastColor  = tierLineColor(data[data.length - 1].tier, light);
+
+  // Each line segment takes the color of the tier at its END point — so the
+  // line switches to the new tier's color exactly at the promotion/demotion.
+  const segmentColor = ctx => tierLineColor(_chartData[ctx.p1DataIndex]?.tier, light);
+
   const chartLabel = `${account.nickname}#${account.tag} — ${historyQueue === 'flex' ? 'Flex' : 'Solo/Duo'}`;
 
   // ── Fast path: same account — update data in-place (no flicker, no DOM recreate) ──
@@ -254,11 +290,12 @@ function buildHistoryChart(account, data) {
     historyChart.data.labels        = labels;
     ds.data                         = values;
     ds.label                        = chartLabel;
-    ds.borderColor                  = tierColor;
-    ds.backgroundColor              = tierColor + '1a';
+    ds.borderColor                  = lastColor;
+    ds.segment.borderColor          = segmentColor;
     ds.pointBackgroundColor         = ptColors;
-    ds.pointBorderColor             = ptColors;
-    ds.pointRadius                  = data.length <= 30 ? 4 : 2;
+    ds.pointBorderColor             = ptBorder;
+    ds.pointRadius                  = ptRadius;
+    ds.pointBorderWidth             = ptBorderW;
     historyChart.options.scales.y.min = yMin;
     historyChart.options.scales.y.max = yMax;
     historyChart.update('active');
@@ -269,7 +306,6 @@ function buildHistoryChart(account, data) {
   if (historyChart) { historyChart.destroy(); historyChart = null; }
   _lastChartAccountId = account.id;
 
-  const light = document.body.classList.contains('theme-light');
   const tc = {
     text:     light ? '#6c7a8c' : '#8888aa',
     grid:     light ? 'rgba(180,185,215,0.4)' : 'rgba(37,37,72,0.5)',
@@ -277,6 +313,7 @@ function buildHistoryChart(account, data) {
     ttBorder: light ? '#dde1ea' : '#252548',
     ttTitle:  light ? '#2c3e50' : '#e0e0f0',
     ttBody:   light ? '#6c7a8c' : '#8888aa',
+    fill:     light ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.025)',
   };
 
   historyChart = new Chart(canvas, {
@@ -286,14 +323,16 @@ function buildHistoryChart(account, data) {
       datasets: [{
         label:                chartLabel,
         data:                 values,
-        borderColor:          tierColor,
-        backgroundColor:      tierColor + '1a',
+        borderColor:          lastColor,
+        segment:              { borderColor: segmentColor },
+        backgroundColor:      tc.fill,
         borderWidth:          2.5,
         pointBackgroundColor: ptColors,
-        pointBorderColor:     ptColors,
-        pointRadius:          data.length <= 30 ? 4 : 2,
+        pointBorderColor:     ptBorder,
+        pointBorderWidth:     ptBorderW,
+        pointRadius:          ptRadius,
         pointHoverRadius:     7,
-        tension:              0.35,
+        tension:              0.3,
         fill:                 true,
       }],
     },
@@ -326,7 +365,13 @@ function buildHistoryChart(account, data) {
               if (ctx.dataIndex === 0) return null;
               const curr = _chartData[ctx.dataIndex];
               const prev = _chartData[ctx.dataIndex - 1];
-              if (curr.tier !== prev.tier || curr.division !== prev.division) {
+              // Tier change → explicit promotion / demotion indicator
+              if (curr.tier !== prev.tier) {
+                const up   = TIER_ORDER.indexOf(curr.tier) > TIER_ORDER.indexOf(prev.tier);
+                const name = TIER_PT[curr.tier] || curr.tier;
+                return up ? ` ↑ Promoção para ${name}` : ` ↓ Rebaixamento para ${name}`;
+              }
+              if (curr.division !== prev.division) {
                 return ` ${rankLabel(prev)} → ${rankLabel(curr)}`;
               }
               const lp = (curr.lp || 0) - (prev.lp || 0);
