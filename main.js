@@ -286,23 +286,44 @@ function readData() {
   return _dataCache;
 }
 
+// Async, non-blocking persistence:
+//  • The in-memory cache is updated SYNCHRONOUSLY so readData() is instantly
+//    consistent (the cache is the source of truth in memory).
+//  • The disk write (atomic .tmp + rename) runs ASYNCHRONOUSLY, serialized via a
+//    promise chain, and coalesces rapid successive writes into a single flush.
+//  • A synchronous flush on quit guarantees the last write is never lost.
+let _pendingWrite = null;       // latest snapshot still to hit disk (null = nothing pending)
+let _writeChain   = Promise.resolve();
+
 function writeData(data) {
-  // Atomic write: write to .tmp then rename — prevents file corruption on crash/power loss.
-  // If the process dies between writeFileSync and renameSync the original file is untouched.
-  const tmp = DATA_PATH + '.tmp';
+  _dataCache    = data;         // source of truth in memory — reads see it immediately
+  _pendingWrite = data;
+  _writeChain   = _writeChain.then(_flushWriteAsync);
+  return true;                  // optimistic; a disk failure is surfaced via notification
+}
+
+async function _flushWriteAsync() {
+  if (!_pendingWrite) return;   // already coalesced into a previous flush
+  const data = _pendingWrite; _pendingWrite = null;
+  const tmp  = DATA_PATH + '.tmp';
   try {
-    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-    fs.renameSync(tmp, DATA_PATH);
-    _dataCache = data;          // cache the freshly-persisted state
-    return true;
+    await fs.promises.writeFile(tmp, JSON.stringify(data, null, 2), 'utf8');
+    await fs.promises.rename(tmp, DATA_PATH);
   } catch (e) {
     console.error('writeData:', e.message);
     _dataCache = null;          // invalidate — next read reloads the last good disk state
-    // Clean up orphaned .tmp file if it exists
-    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {}
+    try { await fs.promises.unlink(tmp); } catch {}
     push('notification', { type: 'error', message: 'Falha ao salvar dados no disco: ' + e.message });
-    return false;
   }
+}
+
+// Synchronous flush — called on app quit so the last in-memory write is persisted.
+function flushWriteSync() {
+  if (!_pendingWrite) return;
+  const data = _pendingWrite; _pendingWrite = null;
+  const tmp  = DATA_PATH + '.tmp';
+  try { fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8'); fs.renameSync(tmp, DATA_PATH); }
+  catch (e) { console.error('flushWriteSync:', e.message); }
 }
 
 // ============================================================
@@ -614,12 +635,15 @@ async function getLiveGame(id) {
   const savedByPuuid = {};
   for (const a of readData().accounts) if (a.puuid) savedByPuuid[a.puuid] = a;
 
-  // 2. Enrich all 10 participants concurrently — one failure never breaks the others
-  const _t0 = Date.now();
+  // 2. Enrich all 10 participants concurrently — one failure never breaks the others.
+  // Emit progress as each resolves so the UI can show "X/10 jogadores".
+  const total = game.participants.length;
+  let loaded = 0;
+  push('liveGameProgress', { loaded: 0, total });
+  const track = pr => pr.finally(() => { loaded++; push('liveGameProgress', { loaded, total }); });
   const settled = await Promise.allSettled(
-    game.participants.map(p => enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid, myTeamId))
+    game.participants.map(p => track(enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid, myTeamId)))
   );
-  console.log(`[perf] live game: ${game.participants.length} jogadores carregados em ${Date.now() - _t0}ms`);
 
   const players = settled.map((r, i) => {
     if (r.status === 'fulfilled') return r.value;
@@ -682,7 +706,6 @@ function getPlayerDetails(puuid, server) {
 }
 
 async function _loadPlayerDetails(puuid, server) {
-  const _t0 = Date.now();
   const apiKey = await getApiKey();
   if (!apiKey) throw new Error('API Key não configurada');
   const region   = REGIONAL_ROUTING[server] || 'americas';
@@ -776,7 +799,6 @@ async function _loadPlayerDetails(puuid, server) {
     _playerDetailsCache.delete(_playerDetailsCache.keys().next().value);
   }
   _playerDetailsCache.set(puuid, { ts: Date.now(), data });
-  console.log(`[perf] player details ${puuid.slice(0, 8)}: ${recentMatches.length} partidas em ${Date.now() - _t0}ms`);
   return data;
 }
 
@@ -1861,6 +1883,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  flushWriteSync();   // persist any pending in-memory write before exiting
   globalShortcut.unregisterAll();
   if (tray) { tray.destroy(); tray = null; }   // remove tray icon immediately on quit
 });

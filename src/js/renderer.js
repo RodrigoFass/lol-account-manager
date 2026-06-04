@@ -131,6 +131,12 @@ function setupEventListeners() {
 
   api.on('navigate', section => navigate(section));
 
+  // Live game loading progress — "X/10 jogadores"
+  api.on('liveGameProgress', ({ loaded, total }) => {
+    const el = document.getElementById('lg-progress');
+    if (el) el.textContent = `Carregando jogadores... ${loaded}/${total}`;
+  });
+
   // Auto-update events
   api.on('update:status', s => handleUpdateStatus(s));
   api.on('update:progress', ({ percent }) => {
@@ -1409,7 +1415,7 @@ async function analyzeLiveGame(id, btn) {
   const body = document.getElementById('livegame-body');
   const sub  = document.getElementById('livegame-subtitle');
   if (sub)  sub.textContent = 'Carregando partida...';
-  if (body) body.innerHTML = `<div class="lg-loading"><span class="spinner"></span> Buscando jogadores da partida...</div>`;
+  if (body) body.innerHTML = `<div class="lg-loading"><span class="spinner"></span> <span id="lg-progress">Buscando partida...</span></div>`;
   await _loadLiveGame();
 }
 
@@ -1597,7 +1603,7 @@ function buildPlayerCard(p) {
 function refreshLiveGame() {
   if (!_liveAccountId) return;
   const body = document.getElementById('livegame-body');
-  if (body) body.innerHTML = `<div class="lg-loading"><span class="spinner"></span> Atualizando partida...</div>`;
+  if (body) body.innerHTML = `<div class="lg-loading"><span class="spinner"></span> <span id="lg-progress">Atualizando partida...</span></div>`;
   _loadLiveGame();
 }
 
