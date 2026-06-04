@@ -1231,7 +1231,6 @@ function _sortPlayers(players) {
   const arr = [...players];
   // Sorting always uses the rank actually displayed (queue-aware)
   if (_liveSort === 'elo')     arr.sort((a, b) => _eloScore(_displayRank(b)) - _eloScore(_displayRank(a)));
-  else if (_liveSort === 'lp') arr.sort((a, b) => (_displayRank(b)?.lp || 0) - (_displayRank(a)?.lp || 0));
   else if (_liveSort === 'winrate') {
     const wr = p => { const r = _displayRank(p); return r ? winrate(r.wins, r.losses) : -1; };
     arr.sort((a, b) => wr(b) - wr(a));
