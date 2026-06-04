@@ -80,7 +80,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     set: (openAtLogin)  => ipcRenderer.invoke('startup:set', { openAtLogin }),
   },
   on:  (ch, fn) => {
-    const valid = ['rankUpdate','apiKeyStatus','notification','closeRequest','navigate','update:status','update:progress','lastRefresh','historyUpdated','liveGameProgress'];
+    const valid = ['rankUpdate','apiKeyStatus','notification','closeRequest','navigate','update:status','update:progress','lastRefresh','historyUpdated','liveGameProgress','refreshAllProgress'];
     if (valid.includes(ch)) ipcRenderer.on(ch, (_, ...args) => fn(...args));
   },
   off: (ch, fn) => ipcRenderer.off(ch, fn),

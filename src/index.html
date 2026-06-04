@@ -26,7 +26,7 @@
     <aside class="sidebar">
       <div class="sidebar-logo">
         <h1>LoL <span>Account</span><br>Manager</h1>
-        <p id="app-version">v1.7.1</p>
+        <p id="app-version">v1.8.0</p>
       </div>
 
       <nav class="sidebar-nav">
@@ -145,11 +145,11 @@
                   <th style="width:20px;padding:0 6px 0 16px"><input type="checkbox" id="compare-all-cb" class="compare-checkbox" title="Selecionar todas" onchange="toggleCompareAll(this)"></th>
                   <th style="width:24px"></th>
                   <th style="width:36px">#</th>
-                  <th>Conta</th>
+                  <th class="sortable" onclick="sortBy('nickname')" title="Ordenar por nome">Conta<span class="sort-ind" data-col="nickname"></span></th>
                   <th>Servidor</th>
-                  <th style="width:290px">Solo/Duo</th>
-                  <th style="width:290px">Flex</th>
-                  <th>Última Atualização</th>
+                  <th class="sortable" style="width:290px" onclick="sortBy('solo')" title="Ordenar por elo Solo/Duo">Solo/Duo<span class="sort-ind" data-col="solo"></span></th>
+                  <th class="sortable" style="width:290px" onclick="sortBy('flex')" title="Ordenar por elo Flex">Flex<span class="sort-ind" data-col="flex"></span></th>
+                  <th class="sortable" onclick="sortBy('updated')" title="Ordenar por última atualização">Última Atualização<span class="sort-ind" data-col="updated"></span></th>
                   <th style="width:200px;text-align:right">Ações</th>
                 </tr>
               </thead>

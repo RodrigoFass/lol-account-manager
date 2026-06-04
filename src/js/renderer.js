@@ -10,6 +10,8 @@ let selectedForCompare  = new Set();   // account IDs checked for comparison
 let _accountSelectDirty = false;       // true when history dropdown needs rebuild on next visit
 let availableTags       = [];          // user-defined tags [{name,color,count}]
 let selectedFormTags    = new Set();   // tags chosen in the open account modal
+let sortColumn          = null;        // null = manual (drag) order | 'nickname'|'solo'|'flex'|'updated'
+let sortDir             = 'desc';      // 'asc' | 'desc'
 
 // ── Bootstrap ────────────────────────────────────────────────
 async function init() {
@@ -109,6 +111,14 @@ function setupEventListeners() {
   // Last batch-refresh timestamp — fired after refreshAll completes
   // (including background auto-refresh triggered by the 15-min timer)
   api.on('lastRefresh', ts => updateLastRefreshLabel(ts));
+
+  // Batch-refresh progress — show "Atualizando X/N" in the label
+  api.on('refreshAllProgress', ({ done, total }) => {
+    const el = document.getElementById('last-refresh-label');
+    if (!el || !total) return;
+    el.style.display = '';
+    el.textContent = `⟳ Atualizando ${done}/${total}`;
+  });
 
   // Season backfill finished — refresh in-memory accounts and re-render the
   // history chart if the user is viewing the affected account
@@ -252,7 +262,42 @@ async function loadAccounts() {
   populateAccountSelects();
 }
 
+// Sort a list for display. Returns a new array (never mutates the persisted order).
+function _eloScoreOf(rank) {
+  if (!rank || rank.tier === 'UNRANKED') return -1;
+  return tierToNumber(rank.tier, rank.division) + (rank.lp || 0);
+}
+function sortAccounts(list) {
+  if (!sortColumn) return list;                    // manual (drag) order
+  const arr = [...list];
+  let cmp;
+  if (sortColumn === 'nickname')      cmp = (a, b) => a.nickname.localeCompare(b.nickname, 'pt-BR', { sensitivity: 'base' });
+  else if (sortColumn === 'solo')     cmp = (a, b) => _eloScoreOf(b.currentRank) - _eloScoreOf(a.currentRank);
+  else if (sortColumn === 'flex')     cmp = (a, b) => _eloScoreOf(b.flexRank)    - _eloScoreOf(a.flexRank);
+  else if (sortColumn === 'updated')  cmp = (a, b) => (new Date(b.lastUpdated || 0)) - (new Date(a.lastUpdated || 0));
+  else return list;
+  arr.sort(cmp);
+  if (sortDir === 'asc') arr.reverse();
+  return arr;
+}
+
+// Click a sortable column header
+function sortBy(col) {
+  if (sortColumn === col) {
+    sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    sortColumn = col;
+    sortDir = col === 'nickname' ? 'asc' : 'desc';   // names A→Z; elo/date highest/newest first
+  }
+  // Update header indicators
+  document.querySelectorAll('#accounts-table .sort-ind').forEach(s => { s.textContent = ''; });
+  const ind = document.querySelector(`#accounts-table .sort-ind[data-col="${col}"]`);
+  if (ind) ind.textContent = sortDir === 'asc' ? ' ▲' : ' ▼';
+  filterAccounts();
+}
+
 function renderAccounts(accounts) {
+  accounts = sortAccounts(accounts);
   const empty        = document.getElementById('accounts-empty');
   const tableWrapper = document.getElementById('accounts-table-wrapper');
   const cardsWrapper = document.getElementById('accounts-cards-wrapper');
@@ -463,7 +508,8 @@ function filterAccounts() {
     const matchSearch = !q ||
       a.nickname.toLowerCase().includes(q) ||
       a.tag.toLowerCase().includes(q) ||
-      a.server.toLowerCase().includes(q);
+      a.server.toLowerCase().includes(q) ||
+      (a.tags || []).some(t => String(t).toLowerCase().includes(q));   // also match user tags
 
     // Tier filter applies against the selected queue's rank
     const rankForTier = (queueFilter === 'flex') ? a.flexRank : a.currentRank;
@@ -1216,6 +1262,7 @@ function _ddRow(e)  { return e.target.closest('tr[data-id]'); }
 function _ddClear(tbody) { tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over')); }
 
 function _onDragStart(e) {
+  if (sortColumn) { e.preventDefault(); return; }   // no manual reorder while sorted
   const tr = _ddRow(e); if (!tr) return;
   dragSrcId = tr.dataset.id;
   tr.classList.add('dragging');

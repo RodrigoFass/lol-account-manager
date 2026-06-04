@@ -195,6 +195,11 @@
 
 .table-actions { display: flex; gap: 3px; justify-content: flex-end; }
 
+/* Sortable column headers */
+.data-table th.sortable { cursor: pointer; user-select: none; transition: color 0.12s; }
+.data-table th.sortable:hover { color: var(--text-secondary); }
+.sort-ind { color: var(--accent-red); font-size: 10px; }
+
 /* =============================================
    QUEUE FILTER — column visibility
    col 1 = compare  col 2 = drag  col 3 = #

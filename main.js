@@ -1141,13 +1141,17 @@ async function refreshAccount(id) {
 let lastFullRefresh = 0;   // timestamp of the last completed batch refresh
 
 async function refreshAll() {
-  for (const a of getAccounts()) {
+  const accounts = getAccounts();
+  const total = accounts.length;
+  let done = 0;
+  push('refreshAllProgress', { done, total });
+  for (const a of accounts) {
     // Use the same lock used by riot:fetchRanking to prevent concurrent refreshes
-    if (refreshingAccounts.has(a.id)) continue;
+    if (refreshingAccounts.has(a.id)) { done++; push('refreshAllProgress', { done, total }); continue; }
     refreshingAccounts.add(a.id);
     try { await refreshAccount(a.id); await sleep(300); }
     catch (e) { console.error('refresh err:', e.message); }
-    finally { refreshingAccounts.delete(a.id); }
+    finally { refreshingAccounts.delete(a.id); done++; push('refreshAllProgress', { done, total }); }
   }
   lastFullRefresh = Date.now();
   push('lastRefresh', lastFullRefresh);   // notify renderer (covers background timer refreshes too)
