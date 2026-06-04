@@ -78,9 +78,11 @@ async function loadDDVersion() {
   } catch { /* keep fallback version */ }
 }
 
-// Loads (or defaults to 'solo') the user's queue filter preference from localStorage
+// Loads (or defaults to '' = todas as filas) the user's queue filter preference.
+// Uses a v2 key so existing users (who had 'solo' saved) reset to the new
+// "Todas as Filas" default once, then their choice persists going forward.
 function loadQueueFilterPref() {
-  const saved = localStorage.getItem('pref_queueFilter') ?? 'solo';
+  const saved = localStorage.getItem('pref_queueFilterV2') ?? '';
   const sel   = document.getElementById('filter-queue');
   if (sel) sel.value = saved;
   // applyQueueFilter will be triggered by renderAccounts on first load
@@ -409,7 +411,7 @@ function filterAccounts() {
   });
 
   // Persist user's queue filter preference
-  localStorage.setItem('pref_queueFilter', queueFilter);
+  localStorage.setItem('pref_queueFilterV2', queueFilter);
 
   renderAccounts(filtered);
 }
