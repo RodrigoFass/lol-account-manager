@@ -1476,92 +1476,113 @@ function _streakText(t) {
   return `Equilíbrio: ${t.wins}V / ${t.losses}D nas últimas ${t.total}`;
 }
 
+// One rank card (Solo or Flex) — icon+color via rankBadge, LP/WR/W-L + winrate bar
+function _rankCard(rank, label, isBest) {
+  if (!rank || rank.tier === 'UNRANKED') {
+    return `<div class="pd-rank-card">
+      <div class="pd-rank-q">${label}</div>
+      <div class="pd-rank-empty"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>
+    </div>`;
+  }
+  const wr = winrate(rank.wins, rank.losses);
+  return `<div class="pd-rank-card${isBest ? ' pd-rank-best' : ''}">
+    <div class="pd-rank-q">${label}${isBest ? '<span class="pd-best-tag">★ Maior elo</span>' : ''}</div>
+    <div class="pd-rank-badge">${rankBadge(rank)}</div>
+    <div class="pd-rank-nums">
+      <span><b>${rank.lp}</b> LP</span>
+      <span style="color:${wrColor(wr)}"><b>${wr}%</b> WR</span>
+      <span>${rank.wins}V ${rank.losses}D</span>
+    </div>
+    ${winrateBar(rank.wins, rank.losses)}
+  </div>`;
+}
+
+// One champion-stats card
+function _champStatCard(c, i) {
+  const url     = _champIconUrl(c.image);
+  const extra   = i >= 10 ? ' pd-cs-extra' : '';
+  const hide    = i >= 10 ? ' style="display:none"' : '';
+  return `<div class="pd-cs${extra}"${hide}>
+    ${url ? `<img class="pd-cs-icon" src="${url}" alt="" onerror="this.style.visibility='hidden'">` : '<div class="pd-cs-icon"></div>'}
+    <div class="pd-cs-body">
+      <div class="pd-cs-top">
+        <span class="pd-cs-name">${escHtml(c.name)}</span>
+        ${c.position ? `<span class="pd-cs-pos">${escHtml(c.position)}</span>` : ''}
+      </div>
+      <div class="pd-cs-row">
+        <span class="pd-cs-games">${c.games} ${c.games === 1 ? 'jogo' : 'jogos'}</span>
+        <span style="color:${wrColor(c.winrate)};font-weight:700">${c.winrate}% WR</span>
+        <span class="pd-cs-wl">${c.wins}V ${c.losses}D</span>
+      </div>
+      <div class="pd-cs-row pd-cs-row2">
+        <span>${c.kda.toFixed(1)} KDA</span>
+        ${c.avgCs ? `<span>${c.avgCs} CS méd.</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
 function _renderDetailBody(p, d) {
   const body = document.getElementById('player-detail-body');
   if (!body) return;
 
-  // ── Section: Elo Atual (queue/context-relevant) ──
-  const rank = _detailRank(p);
-  const qLabel = (rank && rank === p.flex) ? 'Flex' : 'Solo / Duo';
-  const series = rank?.series
-    ? `<div class="pd-series">Série de promoção: ${rank.series.split('').map(c =>
-        `<span class="pd-series-dot ${c==='W'?'w':c==='L'?'l':''}">${c==='W'?'V':c==='L'?'D':'•'}</span>`).join('')}</div>`
-    : '';
-  const eloSection = `
+  // ── Section: Elo Atual — Solo + Flex lado a lado, destacando o maior ──
+  const soloScore = _eloScore(p.solo);
+  const flexScore = _eloScore(p.flex);
+  const bestQueue = (soloScore < 0 && flexScore < 0) ? null : (flexScore > soloScore ? 'flex' : 'solo');
+  const ranksSection = `
     <div class="pd-section">
-      <div class="pd-section-title">Elo Atual · ${qLabel}</div>
-      ${rank ? `<div class="pd-elo">${rankCell(rank)}</div>${series}`
-             : `<div class="pd-empty-line"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>`}
+      <div class="pd-section-title">Elo Atual</div>
+      <div class="pd-ranks">
+        ${_rankCard(p.solo, 'Solo / Duo', bestQueue === 'solo')}
+        ${_rankCard(p.flex, 'Flex',       bestQueue === 'flex')}
+      </div>
     </div>`;
 
-  // ── Section: Tendências ──
+  // ── Section: Desempenho recente + perfil (compacto, lado a lado) ──
   const t = d.trends;
   const streak = _streakText(t);
   const trendsSection = t.total ? `
     <div class="pd-section">
-      <div class="pd-section-title">Estatísticas Recentes (${t.total} partidas)</div>
-      <div class="pd-trends">
-        <div class="pd-trend-card">
-          <div class="pd-trend-val" style="color:${wrColor(t.recentWinrate)}">${t.recentWinrate}%</div>
-          <div class="pd-trend-lbl">Win Rate recente</div>
-        </div>
-        <div class="pd-trend-card">
-          <div class="pd-trend-val">${t.wins}V <span style="color:var(--text-dim)">/</span> ${t.losses}D</div>
-          <div class="pd-trend-lbl">Vitórias / Derrotas</div>
-        </div>
-        <div class="pd-trend-card">
-          <div class="pd-trend-val">${t.distinctChamps}</div>
-          <div class="pd-trend-lbl">Campeões diferentes</div>
-        </div>
-        <div class="pd-trend-card">
-          <div class="pd-trend-val">${t.last7}</div>
-          <div class="pd-trend-lbl">Partidas em 7 dias</div>
-        </div>
-      </div>
-      ${streak ? `<div class="pd-streak">${streak}</div>` : ''}
-    </div>` : '';
-
-  // ── Section: Perfil de Jogo ──
-  const profileSection = d.profile.length ? `
-    <div class="pd-section">
-      <div class="pd-section-title">Perfil de Jogo</div>
-      <div class="pd-profile">
-        ${d.profile.map(pt => `<span class="pd-profile-tag">${pt.icon} ${pt.label}</span>`).join('')}
-      </div>
-    </div>` : '';
-
-  // ── Section: Campeões Mais Jogados (mastery) ──
-  // Highlight: principal = top mastery; mais usado = most recent games; maior WR = best recent winrate (>=2 games)
-  const mostUsed = d.recentChampStats[0]?.championId;
-  const bestWr   = [...d.recentChampStats].filter(c => c.games >= 2).sort((a,b)=>b.winrate-a.winrate)[0]?.championId;
-  const champSection = d.mastery.length ? `
-    <div class="pd-section">
-      <div class="pd-section-title">Campeões Mais Jogados (maestria)</div>
-      <div class="pd-champs">
-        ${d.mastery.map((c, i) => {
-          const recent = d.recentChampStats.find(r => r.championId === c.championId);
-          const tags = [];
-          if (i === 0)                    tags.push('<span class="pd-champ-tag tag-main">Principal</span>');
-          if (c.championId === mostUsed)  tags.push('<span class="pd-champ-tag tag-duo">Mais usado</span>');
-          if (c.championId === bestWr)    tags.push('<span class="pd-champ-tag tag-smurf">Maior WR</span>');
-          const url = _champIconUrl(c.image);
-          return `
-          <div class="pd-champ" onclick="togglePlayerChamp(${c.championId},this)">
-            ${url ? `<img class="pd-champ-icon" src="${url}" alt="" onerror="this.style.visibility='hidden'">` : '<div class="pd-champ-icon"></div>'}
-            <div class="pd-champ-info">
-              <div class="pd-champ-name">${escHtml(c.name)} ${tags.join('')}</div>
-              <div class="pd-champ-meta">
-                <span class="pd-mastery">Maestria ${c.level} · ${(c.points/1000).toFixed(0)}k pts</span>
-                ${recent ? `<span style="color:${wrColor(recent.winrate)}">${recent.winrate}% WR</span>
-                            <span class="pd-kda-sm">${recent.kda.toFixed(1)} KDA</span>
-                            <span style="color:var(--text-dim)">${recent.games}j</span>` : ''}
-              </div>
-            </div>
+      <div class="pd-section-title">Desempenho Recente · ${t.total} ranqueadas</div>
+      <div class="pd-summary">
+        <div class="pd-trends">
+          <div class="pd-trend-card">
+            <div class="pd-trend-val" style="color:${wrColor(t.recentWinrate)}">${t.recentWinrate}%</div>
+            <div class="pd-trend-lbl">Win Rate</div>
           </div>
-          <div class="pd-champ-detail" id="pd-champ-${c.championId}" style="display:none"></div>`;
-        }).join('')}
+          <div class="pd-trend-card">
+            <div class="pd-trend-val">${t.wins}<span style="color:var(--text-dim)">V</span> ${t.losses}<span style="color:var(--text-dim)">D</span></div>
+            <div class="pd-trend-lbl">Vitórias / Derrotas</div>
+          </div>
+          <div class="pd-trend-card">
+            <div class="pd-trend-val">${t.distinctChamps}</div>
+            <div class="pd-trend-lbl">Campeões</div>
+          </div>
+        </div>
+        ${(streak || d.profile.length) ? `
+          <div class="pd-summary-side">
+            ${streak ? `<div class="pd-streak">${streak}</div>` : ''}
+            ${d.profile.length ? `<div class="pd-profile">${d.profile.map(pt => `<span class="pd-profile-tag">${pt.icon} ${pt.label}</span>`).join('')}</div>` : ''}
+          </div>` : ''}
       </div>
     </div>` : '';
+
+  // ── Section: Champion Stats (top 10 + ver mais) ──
+  const cs = d.champStats || [];
+  const champSection = cs.length ? `
+    <div class="pd-section">
+      <div class="pd-section-title">Champion Stats · ${d.sampleSize} ranqueadas analisadas</div>
+      <div class="pd-cs-grid" id="pd-champ-list">
+        ${cs.map((c, i) => _champStatCard(c, i)).join('')}
+      </div>
+      ${cs.length > 10
+        ? `<button class="btn btn-secondary btn-sm pd-cs-more" data-expanded="0" data-count="${cs.length - 10}" onclick="toggleChampStats(this)">Ver mais campeões (${cs.length - 10})</button>`
+        : ''}
+    </div>`
+    : (d.matchError
+        ? `<div class="pd-section"><div class="pd-empty-line">⚠️ Estatísticas indisponíveis: ${escHtml(d.matchError)}</div></div>`
+        : `<div class="pd-section"><div class="pd-empty-line">Sem partidas ranqueadas recentes para análise.</div></div>`);
 
   // ── Section: Histórico Recente ──
   const histSection = d.recentMatches.length ? `
@@ -1587,25 +1608,17 @@ function _renderDetailBody(p, d) {
           </div>`;
         }).join('')}
       </div>
-    </div>` : (d.matchError ? `<div class="pd-section"><div class="pd-empty-line">⚠️ Histórico indisponível: ${escHtml(d.matchError)}</div></div>` : '');
+    </div>` : '';
 
-  body.innerHTML = eloSection + trendsSection + profileSection + champSection + histSection;
+  body.innerHTML = ranksSection + trendsSection + champSection + histSection;
 }
 
-// Toggle the per-champion recent-stats detail line
-function togglePlayerChamp(champId, el) {
-  const box = document.getElementById(`pd-champ-${champId}`);
-  if (!box || !_detailData) return;
-  if (box.style.display !== 'none') { box.style.display = 'none'; return; }
-  const r = _detailData.recentChampStats.find(c => c.championId === champId);
-  box.innerHTML = r
-    ? `<div class="pd-champ-detail-inner">
-         <span>${r.games} partidas recentes</span>
-         <span style="color:${wrColor(r.winrate)}">${r.winrate}% WR (${r.wins}V ${r.games-r.wins}D)</span>
-         <span>${r.kda.toFixed(2)} KDA médio</span>
-       </div>`
-    : `<div class="pd-champ-detail-inner"><span style="color:var(--text-dim)">Sem partidas recentes registradas</span></div>`;
-  box.style.display = '';
+// Expand/collapse the champion list beyond the first 10
+function toggleChampStats(btn) {
+  const expanded = btn.dataset.expanded === '1';
+  document.querySelectorAll('#pd-champ-list .pd-cs-extra').forEach(el => el.style.display = expanded ? 'none' : '');
+  btn.dataset.expanded = expanded ? '0' : '1';
+  btn.textContent = expanded ? `Ver mais campeões (${btn.dataset.count})` : 'Mostrar menos';
 }
 
 // ── Watch Mode Form Toggle ────────────────────────────────────

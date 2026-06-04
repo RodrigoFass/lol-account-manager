@@ -1298,48 +1298,75 @@ tr.drag-over {
 .pd-series-dot.w { background: rgba(34,197,94,0.15); color: var(--success); border-color: rgba(34,197,94,0.4); }
 .pd-series-dot.l { background: rgba(239,68,68,0.15); color: var(--danger); border-color: rgba(239,68,68,0.4); }
 
-/* Trends grid */
-.pd-trends { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+/* ── Ranks: Solo + Flex lado a lado ── */
+.pd-ranks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pd-rank-card {
+  background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.pd-rank-card.pd-rank-best { border-color: rgba(245,158,11,0.45); background: rgba(245,158,11,0.05); }
+.pd-rank-q {
+  font-size: 10.5px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+}
+.pd-best-tag { font-size: 9.5px; font-weight: 700; color: var(--accent-gold); text-transform: none; letter-spacing: 0; }
+.pd-rank-badge .tier-badge { font-size: 13px; padding: 3px 10px; }
+.pd-rank-badge .tier-emblem { width: 18px; height: 20px; }
+.pd-rank-nums { display: flex; align-items: center; gap: 14px; font-size: 12.5px; color: var(--text-secondary); }
+.pd-rank-nums b { color: var(--text-primary); font-size: 14px; }
+.pd-rank-card .rank-cell-bottom { margin-top: 2px; }
+.pd-rank-empty { padding: 6px 0; }
+
+/* ── Desempenho recente + perfil ── */
+.pd-summary { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap: 12px; align-items: stretch; }
+.pd-trends { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .pd-trend-card {
   background: var(--bg-input); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 10px 8px; text-align: center;
+  display: flex; flex-direction: column; justify-content: center;
 }
-.pd-trend-val { font-size: 16px; font-weight: 700; color: var(--text-primary); }
-.pd-trend-lbl { font-size: 9.5px; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+.pd-trend-val { font-size: 17px; font-weight: 700; color: var(--text-primary); }
+.pd-trend-lbl { font-size: 9.5px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+.pd-summary-side { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
 .pd-streak {
-  margin-top: 10px; padding: 8px 12px;
-  background: var(--bg-input); border-radius: var(--radius);
-  font-size: 12.5px; font-weight: 600; color: var(--text-secondary); text-align: center;
+  padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: 12.5px; font-weight: 600;
+  color: var(--text-secondary); text-align: center;
 }
-
-/* Play profile tags */
 .pd-profile { display: flex; flex-wrap: wrap; gap: 6px; }
 .pd-profile-tag {
-  font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
   background: var(--bg-input); border: 1px solid var(--border-light);
-  border-radius: 99px; padding: 4px 11px;
+  border-radius: 99px; padding: 4px 10px;
 }
 
-/* Champion list */
-.pd-champs { display: flex; flex-direction: column; gap: 4px; }
-.pd-champ {
+/* ── Champion Stats grid ── */
+.pd-cs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pd-cs {
   display: flex; align-items: center; gap: 10px;
-  padding: 7px 8px; border-radius: var(--radius); cursor: pointer;
-  transition: background 0.1s;
+  padding: 8px 10px; border-radius: var(--radius);
+  background: var(--bg-input); border: 1px solid var(--border);
 }
-.pd-champ:hover { background: var(--bg-hover); }
-.pd-champ-icon { width: 34px; height: 34px; border-radius: var(--radius-sm); flex-shrink: 0; background: var(--bg-input); border: 1px solid var(--border-light); }
-.pd-champ-info { flex: 1; min-width: 0; }
-.pd-champ-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-.pd-champ-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 11.5px; color: var(--text-secondary); }
-.pd-mastery { color: var(--text-muted); font-weight: 500; }
-.pd-kda-sm { color: var(--text-muted); }
-.pd-champ-tag { font-size: 9px; font-weight: 700; border-radius: 99px; padding: 0 6px; }
-.pd-champ-detail { padding: 0 8px 8px 52px; }
-.pd-champ-detail-inner { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); background: var(--bg-input); border-radius: var(--radius-sm); padding: 6px 10px; }
+.pd-cs-icon { width: 38px; height: 38px; border-radius: var(--radius-sm); flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border-light); }
+.pd-cs-body { flex: 1; min-width: 0; }
+.pd-cs-top { display: flex; align-items: center; gap: 6px; }
+.pd-cs-name { font-size: 12.5px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-cs-pos { font-size: 9px; font-weight: 700; color: var(--text-muted); background: var(--bg-card); border-radius: 3px; padding: 1px 5px; text-transform: uppercase; flex-shrink: 0; }
+.pd-cs-row { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 11px; color: var(--text-secondary); flex-wrap: wrap; }
+.pd-cs-row2 { color: var(--text-muted); }
+.pd-cs-games { color: var(--text-primary); font-weight: 600; }
+.pd-cs-wl { color: var(--text-muted); }
+.pd-cs-more { width: 100%; margin-top: 10px; }
 
-/* Recent matches */
-.pd-matches { display: flex; flex-direction: column; gap: 4px; }
+/* Recent matches — 2-column grid to use horizontal space */
+.pd-matches { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+/* Collapse the detail grids to a single column on narrow widths */
+@media (max-width: 760px) {
+  .pd-ranks, .pd-summary, .pd-cs-grid, .pd-matches { grid-template-columns: 1fr; }
+}
 .pd-match {
   display: flex; align-items: center; gap: 10px;
   padding: 7px 10px; border-radius: var(--radius);

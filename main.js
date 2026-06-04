@@ -573,7 +573,15 @@ async function getLiveGame(id) {
 // Cached per-puuid for 5 minutes so re-opening the same player is instant.
 const _playerDetailsCache = new Map();
 const PLAYER_DETAILS_TTL  = 5 * 60 * 1000;
-const RECENT_MATCH_COUNT  = 10;
+const RECENT_MATCH_COUNT  = 20;   // ranked matches sampled for champion stats
+
+// Riot teamPosition → short PT-BR role label
+const POSITION_PT = { TOP: 'Topo', JUNGLE: 'Selva', MIDDLE: 'Meio', BOTTOM: 'Atirador', UTILITY: 'Suporte' };
+function _topPosition(positions) {
+  let best = '', max = 0;
+  for (const k in positions) if (positions[k] > max) { max = positions[k]; best = k; }
+  return POSITION_PT[best] || '';
+}
 
 async function getPlayerDetails(puuid, server) {
   const cached = _playerDetailsCache.get(puuid);
@@ -581,28 +589,16 @@ async function getPlayerDetails(puuid, server) {
 
   const apiKey = await getApiKey();
   if (!apiKey) throw new Error('API Key não configurada');
-  const host     = SERVER_HOSTS[server]     || 'br1.api.riotgames.com';
   const region   = REGIONAL_ROUTING[server] || 'americas';
   const champMap = await getChampionMap();
 
-  // 1. Champion mastery — top 10 (best-effort; some dev keys block this)
-  let mastery = [];
-  try {
-    const m = await riotRequest(
-      `https://${host}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(puuid)}/top?count=10`, apiKey);
-    mastery = (m || []).map(x => {
-      const c = champMap[x.championId] || {};
-      return { championId: x.championId, name: c.name || `Campeão ${x.championId}`,
-               image: c.image || null, level: x.championLevel, points: x.championPoints };
-    });
-  } catch { /* mastery optional */ }
-
-  // 2. Recent matches — 1 call for IDs + N calls for details (allSettled)
+  // Fetch the last N RANKED matches — 1 call for IDs + N calls for details (allSettled).
+  // Champion stats are aggregated from these (no separate mastery call needed).
   let recentMatches = [];
   let matchError    = null;
   try {
     const ids = await riotRequest(
-      `https://${region}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?start=0&count=${RECENT_MATCH_COUNT}`, apiKey);
+      `https://${region}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?type=ranked&start=0&count=${RECENT_MATCH_COUNT}`, apiKey);
     const settled = await Promise.allSettled((ids || []).map(id =>
       riotRequest(`https://${region}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(id)}`, apiKey)));
     for (const r of settled) {
@@ -617,28 +613,36 @@ async function getPlayerDetails(puuid, server) {
         championImage: c.image || me.championName || null,
         win:           me.win,
         kills: me.kills, deaths: me.deaths, assists: me.assists,
+        cs:            (me.totalMinionsKilled || 0) + (me.neutralMinionsKilled || 0),
+        position:      me.teamPosition || me.individualPosition || '',
         durationSec:   info.gameDuration,
         gameCreation:  info.gameCreation,
         queueId:       info.queueId,
-        queueName:     QUEUE_NAMES[info.queueId] || 'Partida',
+        queueName:     QUEUE_NAMES[info.queueId] || 'Ranqueada',
       });
     }
   } catch (e) { matchError = (e.message || '').replace(/^STEP:\S+ → /, ''); }
 
-  // 3. Per-champion aggregation from the recent matches
+  // Per-champion aggregation across the sampled ranked matches
   const aggMap = {};
   for (const m of recentMatches) {
     const a = aggMap[m.championId] || (aggMap[m.championId] =
-      { championId: m.championId, name: m.championName, image: m.championImage, games: 0, wins: 0, k: 0, d: 0, a: 0 });
-    a.games++; if (m.win) a.wins++; a.k += m.kills; a.d += m.deaths; a.a += m.assists;
+      { championId: m.championId, name: m.championName, image: m.championImage,
+        games: 0, wins: 0, k: 0, d: 0, a: 0, cs: 0, positions: {} });
+    a.games++; if (m.win) a.wins++;
+    a.k += m.kills; a.d += m.deaths; a.a += m.assists; a.cs += m.cs;
+    if (m.position) a.positions[m.position] = (a.positions[m.position] || 0) + 1;
   }
-  const recentChampStats = Object.values(aggMap).map(a => ({
+  const champStats = Object.values(aggMap).map(a => ({
     championId: a.championId, name: a.name, image: a.image,
-    games: a.games, wins: a.wins, winrate: a.games ? Math.round(a.wins / a.games * 100) : 0,
-    kda: (a.k + a.a) / Math.max(a.d, 1),
-  })).sort((x, y) => y.games - x.games);
+    games: a.games, wins: a.wins, losses: a.games - a.wins,
+    winrate: a.games ? Math.round(a.wins / a.games * 100) : 0,
+    kda:     (a.k + a.a) / Math.max(a.d, 1),
+    avgCs:   a.games ? Math.round(a.cs / a.games) : 0,
+    position: _topPosition(a.positions),
+  })).sort((x, y) => y.games - x.games || y.winrate - x.winrate);
 
-  // 4. Trends
+  // Trends (no "7-day" metric — removed)
   const total = recentMatches.length;
   const wins  = recentMatches.filter(m => m.win).length;
   const recentWinrate = total ? Math.round(wins / total * 100) : null;
@@ -648,23 +652,21 @@ async function getPlayerDetails(puuid, server) {
     for (const m of recentMatches) { if ((m.win ? 'win' : 'loss') === streakType) streak++; else break; }
   }
   const distinctChamps = new Set(recentMatches.map(m => m.championId)).size;
-  const now   = Date.now();
-  const last7 = recentMatches.filter(m => now - m.gameCreation < 7 * 86400000).length;
 
-  // 5. Auto-detected play profile tags
+  // Auto-detected play profile tags
   const profile = [];
   if (total >= 3) {
     if (distinctChamps <= 2)      profile.push({ icon: '🎯', label: 'Mono campeão' });
     else if (distinctChamps >= 7) profile.push({ icon: '🌈', label: 'Jogador versátil' });
-    if (last7 >= 7)               profile.push({ icon: '🔥', label: 'Conta muito ativa' });
-    else if (last7 <= 1)          profile.push({ icon: '💤', label: 'Pouco ativa recentemente' });
     if (recentWinrate >= 65)      profile.push({ icon: '📈', label: 'Em ascensão' });
     else if (recentWinrate <= 35) profile.push({ icon: '📉', label: 'Em queda' });
   }
 
   const data = {
-    mastery, recentMatches, recentChampStats,
-    trends: { recentWinrate, total, wins, losses: total - wins, streak, streakType, distinctChamps, last7 },
+    champStats,
+    sampleSize:    total,
+    recentMatches: recentMatches.slice(0, 10),
+    trends: { recentWinrate, total, wins, losses: total - wins, streak, streakType, distinctChamps },
     profile, matchError,
   };
   _playerDetailsCache.set(puuid, { ts: Date.now(), data });
