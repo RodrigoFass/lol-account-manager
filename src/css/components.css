@@ -489,7 +489,7 @@ tr.drag-over {
 /* =============================================
    RANK CELL
    ============================================= */
-.rank-cell        { min-width: 168px; min-height: 38px; }
+.rank-cell        { min-width: 220px; min-height: 38px; }
 /* "Sem Rank" cell — centers the badge in the same height as a ranked cell */
 .rank-cell-empty  { display: flex; align-items: center; }
 .rank-cell-top    { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
@@ -1179,7 +1179,7 @@ tr.drag-over {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 7px 10px;
-  min-height: 66px;            /* keeps anon/unranked cards the same size as ranked ones */
+  min-height: 70px;            /* keeps anon/unranked cards the same size as ranked ones */
   display: flex; flex-direction: row; align-items: center; gap: 10px;
   justify-content: space-between;
   transition: border-color 0.15s;

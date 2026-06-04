@@ -1298,7 +1298,7 @@ function buildPlayerCard(p) {
       </div>
       <div class="lg-rank-wrap">
         <div class="lg-rank-label">Oculto</div>
-        <span class="tier-badge tier-UNRANKED">—</span>
+        <div class="rank-cell rank-cell-empty"><span class="tier-badge tier-UNRANKED">—</span></div>
       </div>
     </div>`;
   }
@@ -1332,7 +1332,7 @@ function buildPlayerCard(p) {
 
   const rankHtml = rank
     ? rankCell(rank)
-    : `<span class="tier-badge tier-UNRANKED">Sem Rank</span>`;
+    : `<div class="rank-cell rank-cell-empty"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>`;
 
   return `
   <div class="lg-player lg-clickable" onclick="openPlayerDetail('${p.puuid}')" title="Ver análise detalhada">
