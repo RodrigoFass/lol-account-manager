@@ -301,11 +301,19 @@ function buildHistoryChart(account, data) {
   const baseR     = data.length <= 30 ? 4 : 2;
   const ringColor = light ? '#ffffff' : '#0c0c10';
 
-  // Per-point styling: color = tier of that point; tier-change points get a
+  // Point color = result of that game: green for a gain (win), red for a drop
+  // (loss), neutral for the first point or no change. Tier-change points get a
   // larger marker with a contrasting ring (promotion/demotion indicator).
-  const ptColors   = data.map(h => tierLineColor(h.tier, light));
+  const WIN_C  = '#22c55e';
+  const LOSS_C = '#ef4444';
+  const NEUT_C = light ? '#9aa0b0' : '#8888aa';
+  const ptColors   = values.map((v, i) =>
+    i === 0          ? NEUT_C
+    : v > values[i-1] ? WIN_C
+    : v < values[i-1] ? LOSS_C
+    :                   NEUT_C);
   const ptRadius   = data.map((h, i) => _tierChangedAt(data, i) ? 6 : baseR);
-  const ptBorder   = data.map((h, i) => _tierChangedAt(data, i) ? ringColor : tierLineColor(h.tier, light));
+  const ptBorder   = data.map((h, i) => _tierChangedAt(data, i) ? ringColor : ptColors[i]);
   const ptBorderW  = data.map((h, i) => _tierChangedAt(data, i) ? 2.5 : 1);
   const lastColor  = tierLineColor(data[data.length - 1].tier, light);
 
@@ -375,7 +383,7 @@ function buildHistoryChart(account, data) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: tc.text, font: { size: 12 } } },
+        legend: { display: false },
         tooltip: {
           backgroundColor: tc.ttBg,
           borderColor:     tc.ttBorder,
