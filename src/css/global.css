@@ -423,6 +423,21 @@ body {
 .toast.warning { border-left: 3px solid var(--warning); }
 .toast.info    { border-left: 3px solid var(--info); }
 
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  margin: -2px -4px -2px 0;
+  border-radius: 4px;
+  transition: var(--transition-fast);
+}
+.toast-close:hover { color: var(--text-primary); background: var(--bg-hover); }
+
 @keyframes slideIn  { from { transform: translateX(calc(100% + 20px)); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes slideOut { to   { transform: translateX(calc(100% + 20px)); opacity: 0; } }
 

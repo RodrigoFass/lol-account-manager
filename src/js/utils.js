@@ -1,14 +1,25 @@
 'use strict';
 
 // ── Toast notifications ──────────────────────────────────────
+function dismissToast(btn) {
+  const toast = btn.closest('.toast');
+  if (!toast) return;
+  if (toast._timer) clearTimeout(toast._timer);
+  toast.style.animation = 'slideOut 0.3s ease forwards';
+  setTimeout(() => toast.remove(), 300);
+}
+
 function showToast(message, type = 'info', duration = 3500) {
   const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span style="flex:1">${message}</span>`;
+  toast.innerHTML =
+    `<span>${icons[type] || 'ℹ️'}</span>` +
+    `<span style="flex:1">${message}</span>` +
+    `<button class="toast-close" onclick="dismissToast(this)" title="Fechar">✕</button>`;
   container.appendChild(toast);
-  setTimeout(() => {
+  toast._timer = setTimeout(() => {
     toast.style.animation = 'slideOut 0.3s ease forwards';
     setTimeout(() => toast.remove(), 300);
   }, duration);
