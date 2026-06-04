@@ -1158,7 +1158,11 @@ let _liveFilter      = 'all';  // 'all' | 'allies' | 'enemies'
 
 async function analyzeLiveGame(id, btn) {
   _liveAccountId = id;
+  _liveGame = null;   // drop previous account's match so it can't be re-rendered while loading
   _liveSort = 'team'; _liveFilter = 'all';
+  // Reset sort/filter button highlights to the defaults
+  document.querySelectorAll('#livegame-modal .lg-sort-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  document.querySelectorAll('#livegame-modal .lg-filter-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
   openModal('livegame-modal');
   const body = document.getElementById('livegame-body');
   const sub  = document.getElementById('livegame-subtitle');
@@ -1173,6 +1177,7 @@ async function _loadLiveGame() {
   const res  = await api.riot.getLiveGame(_liveAccountId);
 
   if (!res.success) {
+    _liveGame = null;   // clear stale data so sort/filter can't re-render the previous match
     let msg;
     if (res.notInGame)            msg = '🎮 Esta conta não está em partida no momento.';
     else if (res.puuidRequired)   msg = '⚠️ Esta conta não tem PUUID salvo. Edite a conta e clique em "🔍 Buscar" para obter o PUUID antes de analisar partidas.';
