@@ -460,8 +460,8 @@ async function enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid
     `https://${host}/lol/league/v4/entries/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey);
   const solo = entries.find(e => e.queueType === 'RANKED_SOLO_5x5');
   const flex = entries.find(e => e.queueType === 'RANKED_FLEX_SR');
-  if (solo) out.solo = { tier: solo.tier, division: solo.rank, lp: solo.leaguePoints, wins: solo.wins, losses: solo.losses };
-  if (flex) out.flex = { tier: flex.tier, division: flex.rank, lp: flex.leaguePoints, wins: flex.wins, losses: flex.losses };
+  if (solo) out.solo = { tier: solo.tier, division: solo.rank, lp: solo.leaguePoints, wins: solo.wins, losses: solo.losses, series: solo.miniSeries?.progress || null };
+  if (flex) out.flex = { tier: flex.tier, division: flex.rank, lp: flex.leaguePoints, wins: flex.wins, losses: flex.losses, series: flex.miniSeries?.progress || null };
 
   // Summoner level + profile icon (non-critical — best effort)
   try {
@@ -545,11 +545,115 @@ async function getLiveGame(id) {
     queueName:  QUEUE_NAMES[queueId] ?? 'Partida',
     queueId,
     queueMode,
+    server:     acct.server,
     gameLength: game.gameLength || 0,
     myTeamId,
     selfPuuid:  acct.puuid,
     players,
   };
+}
+
+// ── Player deep-dive details (mastery + recent matches) ───────
+// Loaded ON DEMAND when the user clicks a player — never preloaded for all 10.
+// Cached per-puuid for 5 minutes so re-opening the same player is instant.
+const _playerDetailsCache = new Map();
+const PLAYER_DETAILS_TTL  = 5 * 60 * 1000;
+const RECENT_MATCH_COUNT  = 10;
+
+async function getPlayerDetails(puuid, server) {
+  const cached = _playerDetailsCache.get(puuid);
+  if (cached && Date.now() - cached.ts < PLAYER_DETAILS_TTL) return cached.data;
+
+  const apiKey = await getApiKey();
+  if (!apiKey) throw new Error('API Key não configurada');
+  const host     = SERVER_HOSTS[server]     || 'br1.api.riotgames.com';
+  const region   = REGIONAL_ROUTING[server] || 'americas';
+  const champMap = await getChampionMap();
+
+  // 1. Champion mastery — top 10 (best-effort; some dev keys block this)
+  let mastery = [];
+  try {
+    const m = await riotRequest(
+      `https://${host}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(puuid)}/top?count=10`, apiKey);
+    mastery = (m || []).map(x => {
+      const c = champMap[x.championId] || {};
+      return { championId: x.championId, name: c.name || `Campeão ${x.championId}`,
+               image: c.image || null, level: x.championLevel, points: x.championPoints };
+    });
+  } catch { /* mastery optional */ }
+
+  // 2. Recent matches — 1 call for IDs + N calls for details (allSettled)
+  let recentMatches = [];
+  let matchError    = null;
+  try {
+    const ids = await riotRequest(
+      `https://${region}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?start=0&count=${RECENT_MATCH_COUNT}`, apiKey);
+    const settled = await Promise.allSettled((ids || []).map(id =>
+      riotRequest(`https://${region}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(id)}`, apiKey)));
+    for (const r of settled) {
+      if (r.status !== 'fulfilled') continue;
+      const info = r.value?.info;
+      const me   = info?.participants?.find(pp => pp.puuid === puuid);
+      if (!info || !me) continue;
+      const c = champMap[me.championId] || {};
+      recentMatches.push({
+        championId:    me.championId,
+        championName:  c.name || me.championName || `Campeão ${me.championId}`,
+        championImage: c.image || me.championName || null,
+        win:           me.win,
+        kills: me.kills, deaths: me.deaths, assists: me.assists,
+        durationSec:   info.gameDuration,
+        gameCreation:  info.gameCreation,
+        queueId:       info.queueId,
+        queueName:     QUEUE_NAMES[info.queueId] || 'Partida',
+      });
+    }
+  } catch (e) { matchError = (e.message || '').replace(/^STEP:\S+ → /, ''); }
+
+  // 3. Per-champion aggregation from the recent matches
+  const aggMap = {};
+  for (const m of recentMatches) {
+    const a = aggMap[m.championId] || (aggMap[m.championId] =
+      { championId: m.championId, name: m.championName, image: m.championImage, games: 0, wins: 0, k: 0, d: 0, a: 0 });
+    a.games++; if (m.win) a.wins++; a.k += m.kills; a.d += m.deaths; a.a += m.assists;
+  }
+  const recentChampStats = Object.values(aggMap).map(a => ({
+    championId: a.championId, name: a.name, image: a.image,
+    games: a.games, wins: a.wins, winrate: a.games ? Math.round(a.wins / a.games * 100) : 0,
+    kda: (a.k + a.a) / Math.max(a.d, 1),
+  })).sort((x, y) => y.games - x.games);
+
+  // 4. Trends
+  const total = recentMatches.length;
+  const wins  = recentMatches.filter(m => m.win).length;
+  const recentWinrate = total ? Math.round(wins / total * 100) : null;
+  let streak = 0, streakType = null;
+  if (total) {
+    streakType = recentMatches[0].win ? 'win' : 'loss';
+    for (const m of recentMatches) { if ((m.win ? 'win' : 'loss') === streakType) streak++; else break; }
+  }
+  const distinctChamps = new Set(recentMatches.map(m => m.championId)).size;
+  const now   = Date.now();
+  const last7 = recentMatches.filter(m => now - m.gameCreation < 7 * 86400000).length;
+
+  // 5. Auto-detected play profile tags
+  const profile = [];
+  if (total >= 3) {
+    if (distinctChamps <= 2)      profile.push({ icon: '🎯', label: 'Mono campeão' });
+    else if (distinctChamps >= 7) profile.push({ icon: '🌈', label: 'Jogador versátil' });
+    if (last7 >= 7)               profile.push({ icon: '🔥', label: 'Conta muito ativa' });
+    else if (last7 <= 1)          profile.push({ icon: '💤', label: 'Pouco ativa recentemente' });
+    if (recentWinrate >= 65)      profile.push({ icon: '📈', label: 'Em ascensão' });
+    else if (recentWinrate <= 35) profile.push({ icon: '📉', label: 'Em queda' });
+  }
+
+  const data = {
+    mastery, recentMatches, recentChampStats,
+    trends: { recentWinrate, total, wins, losses: total - wins, streak, streakType, distinctChamps, last7 },
+    profile, matchError,
+  };
+  _playerDetailsCache.set(puuid, { ts: Date.now(), data });
+  return data;
 }
 
 async function getApiKey() {
@@ -1007,6 +1111,12 @@ ipcMain.handle('riot:getLiveGame', async (_, id) => {
     if (e.puuidRequired) return { success: false, puuidRequired: true, error: e.message };
     return { success: false, error: e.message || 'Erro ao buscar partida' };
   }
+});
+
+ipcMain.handle('riot:getPlayerDetails', async (_, { puuid, server }) => {
+  if (!isLoggedIn) return { success: false, error: 'Não autenticado' };
+  try { return { success: true, data: await getPlayerDetails(puuid, server) }; }
+  catch (e) { return { success: false, error: (e.message || 'Erro ao carregar detalhes').replace(/^STEP:\S+ → /, '') }; }
 });
 
 ipcMain.handle('riot:lookupPuuid', async (_, { nickname, tag, server }) => {

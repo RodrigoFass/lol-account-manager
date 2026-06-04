@@ -1315,7 +1315,7 @@ function buildPlayerCard(p) {
     : `<span class="tier-badge tier-UNRANKED">Sem Rank</span>`;
 
   return `
-  <div class="lg-player">
+  <div class="lg-player lg-clickable" onclick="openPlayerDetail('${p.puuid}')" title="Ver análise detalhada">
     <div class="lg-player-top">
       ${champImg}
       <div class="lg-player-id">
@@ -1341,6 +1341,203 @@ function refreshLiveGame() {
   _loadLiveGame();
 }
 
+// ══════════════════════════════════════════════════════════════
+// PLAYER DEEP-DIVE DETAIL MODAL
+// ══════════════════════════════════════════════════════════════
+let _detailData   = null;   // last loaded player-details payload
+let _detailPlayer = null;   // the live-game player object being inspected
+
+function _champIconUrl(image) {
+  return image ? `https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/champion/${image}.png` : '';
+}
+function _profileIconUrl(id) {
+  return id != null ? `https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/profileicon/${id}.png` : '';
+}
+
+async function openPlayerDetail(puuid) {
+  const p = _liveGame?.players.find(x => x.puuid === puuid);
+  if (!p) return;
+  _detailPlayer = p; _detailData = null;
+  openModal('player-detail-modal');
+  _renderDetailHeader(p);                          // basic + ranked render instantly (already loaded)
+  const body = document.getElementById('player-detail-body');
+  if (body) body.innerHTML = `<div class="lg-loading"><span class="spinner"></span> Carregando análise detalhada...</div>`;
+
+  const res = await api.riot.getPlayerDetails(puuid, _liveGame.server);
+  // Guard: user may have closed/switched player while loading
+  if (_detailPlayer?.puuid !== puuid) return;
+  if (!res.success) {
+    if (body) body.innerHTML = `<div class="lg-empty">⚠️ ${escHtml(res.error || 'Não foi possível carregar os detalhes.')}</div>`;
+    return;
+  }
+  _detailData = res.data;
+  _renderDetailBody(p, res.data);
+}
+
+function _renderDetailHeader(p) {
+  const header = document.getElementById('player-detail-header');
+  if (!header) return;
+  const [name, tag] = (p.riotId || 'Desconhecido').split('#');
+  const icon = _profileIconUrl(p.profileIconId);
+  const iconHtml = icon
+    ? `<img class="pd-avatar" src="${icon}" alt="" onerror="this.style.display='none'">`
+    : `<div class="pd-avatar pd-avatar-fallback">${escHtml((name||'?').charAt(0).toUpperCase())}</div>`;
+  header.innerHTML = `
+    ${iconHtml}
+    <div class="pd-id">
+      <div class="pd-name">${escHtml(name||'Desconhecido')}<span class="pd-tag">#${escHtml(tag||'')}</span></div>
+      <div class="pd-sub">
+        ${p.level ? `<span class="lg-level">Nv. ${p.level}</span>` : ''}
+        <span class="pd-region">${escHtml(_liveGame.server || '')}</span>
+        <span class="pd-champ-now">Jogando <strong>${escHtml(p.championName)}</strong></span>
+      </div>
+    </div>`;
+}
+
+function _streakText(t) {
+  if (!t.total) return null;
+  if (t.streak >= 2) {
+    return t.streakType === 'win'
+      ? `🔥 ${t.streak} vitórias consecutivas`
+      : `❄️ ${t.streak} derrotas consecutivas`;
+  }
+  if (t.losses > t.wins) return `📉 Perdeu ${t.losses} das últimas ${t.total} partidas`;
+  if (t.wins > t.losses)  return `📈 Venceu ${t.wins} das últimas ${t.total} partidas`;
+  return `Equilíbrio: ${t.wins}V / ${t.losses}D nas últimas ${t.total}`;
+}
+
+function _renderDetailBody(p, d) {
+  const body = document.getElementById('player-detail-body');
+  if (!body) return;
+
+  // ── Section: Elo Atual (queue-relevant) ──
+  const rank = _displayRank(p);
+  const qLabel = _liveGame.queueMode === 'flex' ? 'Flex' : 'Solo / Duo';
+  const series = rank?.series
+    ? `<div class="pd-series">Série de promoção: ${rank.series.split('').map(c =>
+        `<span class="pd-series-dot ${c==='W'?'w':c==='L'?'l':''}">${c==='W'?'V':c==='L'?'D':'•'}</span>`).join('')}</div>`
+    : '';
+  const eloSection = `
+    <div class="pd-section">
+      <div class="pd-section-title">Elo Atual · ${qLabel}</div>
+      ${rank ? `<div class="pd-elo">${rankCell(rank)}</div>${series}`
+             : `<div class="pd-empty-line"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>`}
+    </div>`;
+
+  // ── Section: Tendências ──
+  const t = d.trends;
+  const streak = _streakText(t);
+  const trendsSection = t.total ? `
+    <div class="pd-section">
+      <div class="pd-section-title">Estatísticas Recentes (${t.total} partidas)</div>
+      <div class="pd-trends">
+        <div class="pd-trend-card">
+          <div class="pd-trend-val" style="color:${wrColor(t.recentWinrate)}">${t.recentWinrate}%</div>
+          <div class="pd-trend-lbl">Win Rate recente</div>
+        </div>
+        <div class="pd-trend-card">
+          <div class="pd-trend-val">${t.wins}V <span style="color:var(--text-dim)">/</span> ${t.losses}D</div>
+          <div class="pd-trend-lbl">Vitórias / Derrotas</div>
+        </div>
+        <div class="pd-trend-card">
+          <div class="pd-trend-val">${t.distinctChamps}</div>
+          <div class="pd-trend-lbl">Campeões diferentes</div>
+        </div>
+        <div class="pd-trend-card">
+          <div class="pd-trend-val">${t.last7}</div>
+          <div class="pd-trend-lbl">Partidas em 7 dias</div>
+        </div>
+      </div>
+      ${streak ? `<div class="pd-streak">${streak}</div>` : ''}
+    </div>` : '';
+
+  // ── Section: Perfil de Jogo ──
+  const profileSection = d.profile.length ? `
+    <div class="pd-section">
+      <div class="pd-section-title">Perfil de Jogo</div>
+      <div class="pd-profile">
+        ${d.profile.map(pt => `<span class="pd-profile-tag">${pt.icon} ${pt.label}</span>`).join('')}
+      </div>
+    </div>` : '';
+
+  // ── Section: Campeões Mais Jogados (mastery) ──
+  // Highlight: principal = top mastery; mais usado = most recent games; maior WR = best recent winrate (>=2 games)
+  const mostUsed = d.recentChampStats[0]?.championId;
+  const bestWr   = [...d.recentChampStats].filter(c => c.games >= 2).sort((a,b)=>b.winrate-a.winrate)[0]?.championId;
+  const champSection = d.mastery.length ? `
+    <div class="pd-section">
+      <div class="pd-section-title">Campeões Mais Jogados (maestria)</div>
+      <div class="pd-champs">
+        ${d.mastery.map((c, i) => {
+          const recent = d.recentChampStats.find(r => r.championId === c.championId);
+          const tags = [];
+          if (i === 0)                    tags.push('<span class="pd-champ-tag tag-main">Principal</span>');
+          if (c.championId === mostUsed)  tags.push('<span class="pd-champ-tag tag-duo">Mais usado</span>');
+          if (c.championId === bestWr)    tags.push('<span class="pd-champ-tag tag-smurf">Maior WR</span>');
+          const url = _champIconUrl(c.image);
+          return `
+          <div class="pd-champ" onclick="togglePlayerChamp(${c.championId},this)">
+            ${url ? `<img class="pd-champ-icon" src="${url}" alt="" onerror="this.style.visibility='hidden'">` : '<div class="pd-champ-icon"></div>'}
+            <div class="pd-champ-info">
+              <div class="pd-champ-name">${escHtml(c.name)} ${tags.join('')}</div>
+              <div class="pd-champ-meta">
+                <span class="pd-mastery">Maestria ${c.level} · ${(c.points/1000).toFixed(0)}k pts</span>
+                ${recent ? `<span style="color:${wrColor(recent.winrate)}">${recent.winrate}% WR</span>
+                            <span class="pd-kda-sm">${recent.kda.toFixed(1)} KDA</span>
+                            <span style="color:var(--text-dim)">${recent.games}j</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="pd-champ-detail" id="pd-champ-${c.championId}" style="display:none"></div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  // ── Section: Histórico Recente ──
+  const histSection = d.recentMatches.length ? `
+    <div class="pd-section">
+      <div class="pd-section-title">Histórico Recente</div>
+      <div class="pd-matches">
+        ${d.recentMatches.map(m => {
+          const url = _champIconUrl(m.championImage);
+          const kda = ((m.kills + m.assists) / Math.max(m.deaths, 1)).toFixed(1);
+          const mins = Math.floor(m.durationSec / 60);
+          return `
+          <div class="pd-match ${m.win ? 'pd-win' : 'pd-loss'}">
+            ${url ? `<img class="pd-match-champ" src="${url}" alt="" onerror="this.style.visibility='hidden'">` : '<div class="pd-match-champ"></div>'}
+            <div class="pd-match-info">
+              <span class="pd-match-result">${m.win ? 'Vitória' : 'Derrota'}</span>
+              <span class="pd-match-champ-name">${escHtml(m.championName)}</span>
+            </div>
+            <div class="pd-match-kda">${m.kills}/${m.deaths}/${m.assists}<span class="pd-kda-sm"> (${kda})</span></div>
+            <div class="pd-match-meta">
+              <span>${m.queueName}</span>
+              <span class="pd-match-time">${mins}min · ${timeAgo(new Date(m.gameCreation).toISOString())}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : (d.matchError ? `<div class="pd-section"><div class="pd-empty-line">⚠️ Histórico indisponível: ${escHtml(d.matchError)}</div></div>` : '');
+
+  body.innerHTML = eloSection + trendsSection + profileSection + champSection + histSection;
+}
+
+// Toggle the per-champion recent-stats detail line
+function togglePlayerChamp(champId, el) {
+  const box = document.getElementById(`pd-champ-${champId}`);
+  if (!box || !_detailData) return;
+  if (box.style.display !== 'none') { box.style.display = 'none'; return; }
+  const r = _detailData.recentChampStats.find(c => c.championId === champId);
+  box.innerHTML = r
+    ? `<div class="pd-champ-detail-inner">
+         <span>${r.games} partidas recentes</span>
+         <span style="color:${wrColor(r.winrate)}">${r.winrate}% WR (${r.wins}V ${r.games-r.wins}D)</span>
+         <span>${r.kda.toFixed(2)} KDA médio</span>
+       </div>`
+    : `<div class="pd-champ-detail-inner"><span style="color:var(--text-dim)">Sem partidas recentes registradas</span></div>`;
+  box.style.display = '';
+}
+
 // ── Watch Mode Form Toggle ────────────────────────────────────
 function toggleWatchMode(isWatch) {
   const group = document.getElementById('credentials-group');
@@ -1359,7 +1556,7 @@ function toggleWatchMode(isWatch) {
 // ── Escape closes any open modal ─────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  const modals = ['account-modal', 'compare-modal', 'livegame-modal', 'confirm-delete-modal', 'confirm-logout-modal', 'close-dialog'];
+  const modals = ['player-detail-modal', 'account-modal', 'compare-modal', 'livegame-modal', 'confirm-delete-modal', 'confirm-logout-modal', 'close-dialog'];
   for (const id of modals) {
     const el = document.getElementById(id);
     if (el && el.classList.contains('open')) { el.classList.remove('open'); break; }
