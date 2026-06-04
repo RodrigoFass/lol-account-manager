@@ -110,8 +110,12 @@ async function rebuildSeasonHistory(btn) {
   else     showToast('Nenhum dado adicional disponível para reconstruir (apex ou sem partidas).', 'info', 5000);
 
   allAccounts = await api.accounts.getAll();
-  currentHistoryAccount = allAccounts.find(a => a.id === id) || currentHistoryAccount;
-  renderHistoryChart(currentHistoryAccount);
+  // Only re-render if the user is STILL viewing this same account —
+  // they may have switched accounts while the backfill was loading.
+  if (currentHistoryAccount?.id === id) {
+    currentHistoryAccount = allAccounts.find(a => a.id === id) || currentHistoryAccount;
+    renderHistoryChart(currentHistoryAccount);
+  }
 }
 
 // ── Data helpers ──────────────────────────────────────────────
