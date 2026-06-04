@@ -615,6 +615,38 @@
   <button class="btn btn-ghost btn-sm" onclick="clearCompare()">✕ Limpar</button>
 </div>
 
+<!-- Live Game Modal -->
+<div class="modal-overlay" id="livegame-modal">
+  <div class="modal" style="max-width:min(96vw,1200px);width:96vw;max-height:90vh">
+    <div class="modal-header">
+      <div>
+        <h3>🔴 Análise de Partida ao Vivo</h3>
+        <div id="livegame-subtitle" style="font-size:12px;color:var(--text-muted);margin-top:2px"></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-secondary btn-sm" onclick="refreshLiveGame()" title="Atualizar dados da partida">⟳ Atualizar</button>
+        <button class="btn-icon" onclick="closeModalById('livegame-modal')">✕</button>
+      </div>
+    </div>
+    <div class="lg-controls">
+      <div class="lg-control-group">
+        <span class="lg-control-label">Ordenar:</span>
+        <button class="chart-btn lg-sort-btn active" onclick="setLiveSort('team',this)">Time</button>
+        <button class="chart-btn lg-sort-btn" onclick="setLiveSort('elo',this)">Elo</button>
+        <button class="chart-btn lg-sort-btn" onclick="setLiveSort('lp',this)">LP</button>
+        <button class="chart-btn lg-sort-btn" onclick="setLiveSort('winrate',this)">Win Rate</button>
+      </div>
+      <div class="lg-control-group">
+        <span class="lg-control-label">Mostrar:</span>
+        <button class="chart-btn lg-filter-btn active" onclick="setLiveFilter('all',this)">Todos</button>
+        <button class="chart-btn lg-filter-btn" onclick="setLiveFilter('allies',this)">Aliados</button>
+        <button class="chart-btn lg-filter-btn" onclick="setLiveFilter('enemies',this)">Inimigos</button>
+      </div>
+    </div>
+    <div class="modal-body" id="livegame-body" style="padding:16px 20px"></div>
+  </div>
+</div>
+
 <!-- Compare Modal -->
 <div class="modal-overlay" id="compare-modal">
   <div class="modal" style="max-width:900px;width:90vw">

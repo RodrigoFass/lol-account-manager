@@ -291,6 +291,7 @@ function buildRow(a, idx) {
     <td>
       <div class="table-actions">
         ${credBtns}
+        <button class="btn-icon" onclick="analyzeLiveGame('${a.id}',this)" title="Analisar Partida ao Vivo">🔴</button>
         <button class="btn-icon" onclick="refreshOne('${a.id}',this)" title="Atualizar Rank">⟳</button>
         <button class="btn-icon" onclick="openEditModal('${a.id}')" title="Editar">✏️</button>
         <button class="btn-icon btn-icon-danger" onclick="confirmDelete('${a.id}','${escHtml(a.nickname)}')" title="Remover">🗑️</button>
@@ -344,6 +345,7 @@ function buildCard(a) {
     ${hasDecay ? `<span class="decay-badge" title="Risco de decay">⚠️ Decay</span>` : ''}
     <div class="card-actions">
       ${credBtns}
+      <button class="btn-icon" onclick="analyzeLiveGame('${a.id}',this)" title="Analisar Partida ao Vivo">🔴</button>
       <button class="btn-icon" onclick="refreshOne('${a.id}',this)" title="Atualizar Rank">⟳</button>
       <button class="btn-icon" onclick="openEditModal('${a.id}')" title="Editar">✏️</button>
       <button class="btn-icon btn-icon-danger" onclick="confirmDelete('${a.id}','${escHtml(a.nickname)}')" title="Remover">🗑️</button>
@@ -1146,6 +1148,185 @@ function buildCompareContent(accounts) {
     </p>`;
 }
 
+// ══════════════════════════════════════════════════════════════
+// LIVE GAME ANALYSIS (Spectator)
+// ══════════════════════════════════════════════════════════════
+let _liveGame        = null;   // last loaded game data
+let _liveAccountId   = null;   // account used to load the game
+let _liveSort        = 'team'; // 'team' | 'elo' | 'lp' | 'winrate'
+let _liveFilter      = 'all';  // 'all' | 'allies' | 'enemies'
+
+async function analyzeLiveGame(id, btn) {
+  _liveAccountId = id;
+  _liveSort = 'team'; _liveFilter = 'all';
+  openModal('livegame-modal');
+  const body = document.getElementById('livegame-body');
+  const sub  = document.getElementById('livegame-subtitle');
+  if (sub)  sub.textContent = 'Carregando partida...';
+  if (body) body.innerHTML = `<div class="lg-loading"><span class="spinner"></span> Buscando jogadores da partida...</div>`;
+  await _loadLiveGame();
+}
+
+async function _loadLiveGame() {
+  const body = document.getElementById('livegame-body');
+  const sub  = document.getElementById('livegame-subtitle');
+  const res  = await api.riot.getLiveGame(_liveAccountId);
+
+  if (!res.success) {
+    let msg;
+    if (res.notInGame)            msg = '🎮 Esta conta não está em partida no momento.';
+    else if (res.puuidRequired)   msg = '⚠️ Esta conta não tem PUUID salvo. Edite a conta e clique em "🔍 Buscar" para obter o PUUID antes de analisar partidas.';
+    else if (res.error?.includes('SPECTATOR_BLOCKED')) msg = '🔒 O endpoint de espectador está bloqueado para esta API Key. É necessária uma Personal API Key (developer.riotgames.com).';
+    else                          msg = res.error || 'Não foi possível obter os dados da partida.';
+    if (sub)  sub.textContent = '';
+    if (body) body.innerHTML = `<div class="lg-empty">${msg}</div>`;
+    return;
+  }
+
+  _liveGame = res.data;
+  if (sub) {
+    const mins = Math.floor((_liveGame.gameLength || 0) / 60);
+    const secs = (_liveGame.gameLength || 0) % 60;
+    const time = _liveGame.gameLength > 0 ? ` · ${mins}:${String(secs).padStart(2,'0')}` : '';
+    sub.textContent = `${_liveGame.queueName}${time}`;
+  }
+  renderLiveGame();
+}
+
+function setLiveSort(sort, btn) {
+  _liveSort = sort;
+  document.querySelectorAll('#livegame-modal .lg-sort-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderLiveGame();
+}
+function setLiveFilter(filter, btn) {
+  _liveFilter = filter;
+  document.querySelectorAll('#livegame-modal .lg-filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderLiveGame();
+}
+
+// Numeric score for sorting by elo (tier + division + LP)
+function _eloScore(rank) {
+  if (!rank || rank.tier === 'UNRANKED') return -1;
+  return tierToNumber(rank.tier, rank.division) + (rank.lp || 0);
+}
+
+function _sortPlayers(players) {
+  const arr = [...players];
+  if (_liveSort === 'elo')     arr.sort((a, b) => _eloScore(b.solo) - _eloScore(a.solo));
+  else if (_liveSort === 'lp') arr.sort((a, b) => (b.solo?.lp || 0) - (a.solo?.lp || 0));
+  else if (_liveSort === 'winrate') {
+    const wr = p => p.solo ? winrate(p.solo.wins, p.solo.losses) : -1;
+    arr.sort((a, b) => wr(b) - wr(a));
+  }
+  return arr;
+}
+
+function renderLiveGame() {
+  const body = document.getElementById('livegame-body');
+  if (!body || !_liveGame) return;
+
+  const allies  = _liveGame.players.filter(p => p.isAlly);
+  const enemies = _liveGame.players.filter(p => !p.isAlly);
+
+  const allyCol = `
+    <div class="lg-team lg-team-ally">
+      <div class="lg-team-header lg-team-header-blue">🟦 Aliados</div>
+      ${_sortPlayers(allies).map(buildPlayerCard).join('') || '<div class="lg-empty-team">Nenhum jogador</div>'}
+    </div>`;
+  const enemyCol = `
+    <div class="lg-team lg-team-enemy">
+      <div class="lg-team-header lg-team-header-red">🟥 Inimigos</div>
+      ${_sortPlayers(enemies).map(buildPlayerCard).join('') || '<div class="lg-empty-team">Nenhum jogador</div>'}
+    </div>`;
+
+  let grid;
+  if (_liveFilter === 'allies')      grid = allyCol;
+  else if (_liveFilter === 'enemies') grid = enemyCol;
+  else                                grid = `${allyCol}<div class="lg-vs">VS</div>${enemyCol}`;
+
+  body.innerHTML = `<div class="lg-grid ${_liveFilter !== 'all' ? 'lg-grid-single' : ''}">${grid}</div>`;
+}
+
+function buildPlayerCard(p) {
+  // Champion icon
+  const champUrl = p.championImage
+    ? `https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/champion/${p.championImage}.png`
+    : '';
+  const champImg = champUrl
+    ? `<img class="lg-champ" src="${champUrl}" alt="" title="${escHtml(p.championName)}" onerror="this.style.visibility='hidden'">`
+    : `<div class="lg-champ lg-champ-fallback">?</div>`;
+
+  // Name + tag
+  const [name, tag] = (p.riotId || 'Desconhecido').split('#');
+  const selfBadge = (p.puuid === _liveGame.selfPuuid) ? '<span class="lg-self-badge" title="Esta é a sua conta">★</span>' : '';
+  const internalTags = (p.internalTags || []).map(tagBadge).join('');
+
+  // Error state — partial card
+  if (p.error) {
+    return `
+    <div class="lg-player lg-player-error">
+      <div class="lg-player-top">
+        ${champImg}
+        <div class="lg-player-id">
+          <div class="lg-name">${escHtml(name || 'Desconhecido')}${selfBadge}</div>
+          <div class="lg-champname">${escHtml(p.championName)}</div>
+        </div>
+      </div>
+      <div class="lg-error-msg">⚠️ ${escHtml(p.error)}</div>
+    </div>`;
+  }
+
+  // Rank cells
+  const soloWr = p.solo ? winrate(p.solo.wins, p.solo.losses) : null;
+  const flexWr = p.flex ? winrate(p.flex.wins, p.flex.losses) : null;
+
+  const soloBlock = p.solo
+    ? `<div class="lg-rank-row">
+         ${rankBadge(p.solo)}
+         <span class="lg-lp">${p.solo.lp} LP</span>
+         ${wrChip(soloWr)}
+         <span class="lg-vd">${p.solo.wins}V ${p.solo.losses}D</span>
+       </div>`
+    : `<div class="lg-rank-row lg-unranked"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>`;
+
+  const flexBlock = p.flex
+    ? `<div class="lg-rank-row lg-flex">
+         <span class="lg-q">Flex</span>
+         ${rankBadge(p.flex)}
+         <span class="lg-lp">${p.flex.lp} LP</span>
+         ${wrChip(flexWr)}
+       </div>`
+    : '';
+
+  return `
+  <div class="lg-player">
+    <div class="lg-player-top">
+      ${champImg}
+      <div class="lg-player-id">
+        <div class="lg-name">${escHtml(name || 'Desconhecido')}<span class="lg-tag">#${escHtml(tag || '')}</span>${selfBadge}</div>
+        <div class="lg-meta">
+          <span class="lg-champname">${escHtml(p.championName)}</span>
+          ${p.level ? `<span class="lg-level">Nv. ${p.level}</span>` : ''}
+          ${internalTags}
+        </div>
+      </div>
+    </div>
+    <div class="lg-ranks">
+      ${soloBlock}
+      ${flexBlock}
+    </div>
+  </div>`;
+}
+
+function refreshLiveGame() {
+  if (!_liveAccountId) return;
+  const body = document.getElementById('livegame-body');
+  if (body) body.innerHTML = `<div class="lg-loading"><span class="spinner"></span> Atualizando partida...</div>`;
+  _loadLiveGame();
+}
+
 // ── Watch Mode Form Toggle ────────────────────────────────────
 function toggleWatchMode(isWatch) {
   const group = document.getElementById('credentials-group');
@@ -1164,7 +1345,7 @@ function toggleWatchMode(isWatch) {
 // ── Escape closes any open modal ─────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  const modals = ['account-modal', 'compare-modal', 'confirm-delete-modal', 'confirm-logout-modal', 'close-dialog'];
+  const modals = ['account-modal', 'compare-modal', 'livegame-modal', 'confirm-delete-modal', 'confirm-logout-modal', 'close-dialog'];
   for (const id of modals) {
     const el = document.getElementById(id);
     if (el && el.classList.contains('open')) { el.classList.remove('open'); break; }

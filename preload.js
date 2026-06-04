@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fetchAllRankings: ()                => ipcRenderer.invoke('riot:fetchAllRankings'),
     fetchChampions:  (id)               => ipcRenderer.invoke('riot:fetchChampions', id),
     lookupPuuid:     (nickname, tag, server) => ipcRenderer.invoke('riot:lookupPuuid', { nickname, tag, server }),
+    getLiveGame:     (id)               => ipcRenderer.invoke('riot:getLiveGame', id),
     getDDVersion:    ()                 => ipcRenderer.invoke('ddragon:getVersion'),
   },
   apiKey: {

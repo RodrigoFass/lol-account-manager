@@ -403,6 +403,147 @@ async function getDDVersion() {
   return ddVersion;
 }
 
+// Champion id (numeric key) → { name (localized), image (English alias for icon URL) }
+// Fetched once from Data Dragon and cached for the process lifetime.
+let _championMap = null;
+async function getChampionMap() {
+  if (_championMap) return _championMap;
+  try {
+    const v = await getDDVersion();
+    const r = await netFetch(`https://ddragon.leagueoflegends.com/cdn/${v}/data/pt_BR/champion.json`);
+    if (r.ok) {
+      const data = await r.json();
+      _championMap = {};
+      for (const key in data.data) {
+        const c = data.data[key];
+        _championMap[parseInt(c.key, 10)] = { name: c.name, image: c.id };
+      }
+    }
+  } catch (e) { console.error('getChampionMap:', e.message); }
+  return _championMap || {};
+}
+
+// Riot queue config IDs → human-readable names (PT-BR)
+const QUEUE_NAMES = {
+  400: 'Normal (Draft)',  420: 'Ranqueada Solo/Duo', 430: 'Normal (Blind)',
+  440: 'Ranqueada Flex',  450: 'ARAM',               490: 'Normal (Quickplay)',
+  700: 'Clash',           720: 'ARAM Clash',         900: 'URF',
+  1020: 'Um por Todos',   1300: 'Nexus Blitz',       1700: 'Arena',
+  0: 'Personalizada',
+};
+
+// ── Live Game (Spectator-V5) ──────────────────────────────────
+// Enriches one spectator participant with rank, level and Riot ID.
+// All Riot calls go through the rate-limited queue (riotRequest).
+async function enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid, myTeamId) {
+  const champ = champMap[p.championId] || {};
+  const out = {
+    puuid:         p.puuid,
+    teamId:        p.teamId,
+    isAlly:        p.teamId === myTeamId,
+    championId:    p.championId,
+    championName:  champ.name  || `Campeão ${p.championId}`,
+    championImage: champ.image || null,
+    profileIconId: p.profileIconId ?? null,
+    riotId:        p.riotId || null,
+    solo: null, flex: null, level: null,
+    internalTags: [], internalNick: null,
+    error: null,
+  };
+
+  // Reuse internal app data (tags/nick) for participants we already track — no API call
+  const saved = savedByPuuid[p.puuid];
+  if (saved) { out.internalTags = saved.tags || []; out.internalNick = saved.nickname || null; }
+
+  // Ranked entries (solo + flex)
+  const entries = await riotRequest(
+    `https://${host}/lol/league/v4/entries/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey);
+  const solo = entries.find(e => e.queueType === 'RANKED_SOLO_5x5');
+  const flex = entries.find(e => e.queueType === 'RANKED_FLEX_SR');
+  if (solo) out.solo = { tier: solo.tier, division: solo.rank, lp: solo.leaguePoints, wins: solo.wins, losses: solo.losses };
+  if (flex) out.flex = { tier: flex.tier, division: flex.rank, lp: flex.leaguePoints, wins: flex.wins, losses: flex.losses };
+
+  // Summoner level + profile icon (non-critical — best effort)
+  try {
+    const s = await riotRequest(
+      `https://${host}/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey);
+    out.level         = s.summonerLevel ?? null;
+    out.profileIconId = out.profileIconId ?? s.profileIconId ?? null;
+  } catch { /* level is cosmetic */ }
+
+  // Riot ID fallback via ACCOUNT-V1 only when spectator didn't provide it
+  if (!out.riotId) {
+    try {
+      const acc = await riotRequest(
+        `https://${region}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey);
+      out.riotId = `${acc.gameName}#${acc.tagLine}`;
+    } catch { out.riotId = out.internalNick || 'Desconhecido'; }
+  }
+
+  return out;
+}
+
+async function getLiveGame(id) {
+  const acct = readData().accounts.find(a => a.id === id);
+  if (!acct) throw new Error('Conta não encontrada');
+  if (!acct.puuid) {
+    const err = new Error('PUUID_REQUIRED: Esta conta não tem PUUID salvo. Edite a conta e busque o PUUID primeiro.');
+    err.puuidRequired = true; throw err;
+  }
+  const apiKey = await getApiKey();
+  if (!apiKey) throw new Error('API Key não configurada');
+
+  const host   = SERVER_HOSTS[acct.server]     || 'br1.api.riotgames.com';
+  const region = REGIONAL_ROUTING[acct.server] || 'americas';
+
+  // 1. Spectator — is the account in a live game?
+  let game;
+  try {
+    game = await riotRequest(
+      `https://${host}/lol/spectator/v5/active-games/by-summoner/${encodeURIComponent(acct.puuid)}`, apiKey);
+  } catch (e) {
+    if (e.status === 404) { const err = new Error('NOT_IN_GAME'); err.notInGame = true; throw err; }
+    if (e.status === 403) {
+      const err = new Error('SPECTATOR_BLOCKED: Endpoint de espectador bloqueado (403) para esta chave. É necessária uma Personal API Key.');
+      err.status = 403; throw err;
+    }
+    throw e;
+  }
+
+  const champMap   = await getChampionMap();
+  const myTeamId   = game.participants.find(p => p.puuid === acct.puuid)?.teamId ?? 100;
+  const savedByPuuid = {};
+  for (const a of readData().accounts) if (a.puuid) savedByPuuid[a.puuid] = a;
+
+  // 2. Enrich all 10 participants concurrently — one failure never breaks the others
+  const settled = await Promise.allSettled(
+    game.participants.map(p => enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid, myTeamId))
+  );
+
+  const players = settled.map((r, i) => {
+    if (r.status === 'fulfilled') return r.value;
+    // Failed player — return minimal info so the rest still render
+    const p = game.participants[i];
+    const champ = champMap[p.championId] || {};
+    return {
+      puuid: p.puuid, teamId: p.teamId, isAlly: p.teamId === myTeamId,
+      championId: p.championId, championName: champ.name || `Campeão ${p.championId}`,
+      championImage: champ.image || null, profileIconId: p.profileIconId ?? null,
+      riotId: p.riotId || 'Desconhecido', solo: null, flex: null, level: null,
+      internalTags: [], internalNick: null,
+      error: r.reason?.message?.replace(/^STEP:\S+ → /, '') || 'Falha ao carregar este jogador',
+    };
+  });
+
+  return {
+    queueName:  QUEUE_NAMES[game.gameQueueConfigId] ?? 'Partida',
+    gameLength: game.gameLength || 0,
+    myTeamId,
+    selfPuuid:  acct.puuid,
+    players,
+  };
+}
+
 async function getApiKey() {
   const d = readData();
   if (!d.apiKey || !encryptionKey) return null;
@@ -846,6 +987,18 @@ ipcMain.handle('riot:fetchRanking', async (_, id) => {
 ipcMain.handle('riot:fetchAllRankings', async () => {
   if (!isLoggedIn) return { success: false };
   try { await refreshAll(); return { success: true }; } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('riot:getLiveGame', async (_, id) => {
+  if (!isLoggedIn) return { success: false, error: 'Não autenticado' };
+  try {
+    const data = await getLiveGame(id);
+    return { success: true, data };
+  } catch (e) {
+    if (e.notInGame)     return { success: false, notInGame: true,     error: 'NOT_IN_GAME' };
+    if (e.puuidRequired) return { success: false, puuidRequired: true, error: e.message };
+    return { success: false, error: e.message || 'Erro ao buscar partida' };
+  }
 });
 
 ipcMain.handle('riot:lookupPuuid', async (_, { nickname, tag, server }) => {
