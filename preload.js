@@ -38,6 +38,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get:  ()            => ipcRenderer.invoke('settings:get'),
     set:  (key, value)  => ipcRenderer.invoke('settings:set', { key, value }),
   },
+  tags: {
+    getAll: ()                       => ipcRenderer.invoke('tags:getAll'),
+    create: (name, color)            => ipcRenderer.invoke('tags:create', { name, color }),
+    update: (oldName, newName, color)=> ipcRenderer.invoke('tags:update', { oldName, newName, color }),
+    delete: (name)                   => ipcRenderer.invoke('tags:delete', { name }),
+  },
   clipboard: {
     copyLogin:    (id) => ipcRenderer.invoke('clipboard:copy', { id, field: 'login' }),
     copyPassword: (id) => ipcRenderer.invoke('clipboard:copy', { id, field: 'password' }),

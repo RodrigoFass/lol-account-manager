@@ -126,11 +126,26 @@ function winrateBar(wins, losses) {
   `;
 }
 
+// User tag colors — populated by the renderer via setTagColors({ name: '#hex' })
+let _TAG_COLORS = {};
+function setTagColors(map) {
+  _TAG_COLORS = {};
+  for (const k in (map || {})) _TAG_COLORS[k.toLowerCase()] = map[k];
+}
+function _hexToRgba(hex, a) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return `rgba(107,107,136,${a})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+function _escTag(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function tagBadge(tag) {
   if (!tag) return '';
-  const cls   = tag.toLowerCase().replace(/\s+/, '');
-  const label = tag;
-  return `<span class="tag tag-${cls}">${label}</span>`;
+  const color = _TAG_COLORS[String(tag).toLowerCase()] || '#6b6b88';
+  const style = `background:${_hexToRgba(color, 0.16)};color:${color};border:1px solid ${_hexToRgba(color, 0.32)}`;
+  return `<span class="tag" style="${style}">${_escTag(tag)}</span>`;
 }
 
 // ── Time helpers ─────────────────────────────────────────────

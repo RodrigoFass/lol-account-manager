@@ -8,6 +8,8 @@ let ddVersion           = '15.10.1';   // Data Dragon version — refreshed non-
 let currentView         = 'table';     // 'table' | 'cards'
 let selectedForCompare  = new Set();   // account IDs checked for comparison
 let _accountSelectDirty = false;       // true when history dropdown needs rebuild on next visit
+let availableTags       = [];          // user-defined tags [{name,color,count}]
+let selectedFormTags    = new Set();   // tags chosen in the open account modal
 
 // ── Bootstrap ────────────────────────────────────────────────
 async function init() {
@@ -16,6 +18,7 @@ async function init() {
   loadDDVersion();            // non-blocking — fire & forget; fallback version already set
   loadAppVersion();           // sync sidebar version label with package.json (non-blocking)
   loadLastRefresh();          // restore last batch-refresh time label (non-blocking)
+  await loadTags();           // tags + colors BEFORE first render so badges are colored
   await loadAccounts();
   await loadSettings();
   loadApiKeyStatus();
@@ -440,6 +443,118 @@ function applyQueueFilter(queueFilter) {
   table.classList.toggle('hide-solo-col', queueFilter === 'flex');
 }
 
+// ══════════════════════════════════════════════════════════════
+// TAGS — user-defined, managed in Settings
+// ══════════════════════════════════════════════════════════════
+async function loadTags() {
+  availableTags = await api.tags.getAll();
+  // Feed colors to tagBadge() so account badges render in the user's colors
+  const map = {};
+  availableTags.forEach(t => { map[t.name] = t.color; });
+  setTagColors(map);
+  // Populate the dashboard filter dropdown dynamically (preserve current pick)
+  const sel = document.getElementById('filter-tag');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Todas as Tags</option>' +
+      availableTags.map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}${t.count ? ` (${t.count})` : ''}</option>`).join('');
+    sel.value = availableTags.some(t => t.name === cur) ? cur : '';
+  }
+}
+
+// Chips in the account modal (multi-select + optional search)
+function renderTagChips() {
+  const cont = document.getElementById('f-tags-chips');
+  if (!cont) return;
+  const searchEl = document.getElementById('f-tags-search');
+  if (searchEl) searchEl.style.display = availableTags.length > 8 ? '' : 'none';
+  const q = (searchEl?.value || '').toLowerCase();
+
+  if (!availableTags.length) {
+    cont.innerHTML = `<span style="font-size:12px;color:var(--text-dim)">Nenhuma tag criada. Crie em <b>Configurações → Tags</b>.</span>`;
+    return;
+  }
+  const list = availableTags.filter(t => !q || t.name.toLowerCase().includes(q));
+  cont.innerHTML = list.map(t => {
+    const on = selectedFormTags.has(t.name);
+    const style = on ? `background:${_hexToRgba(t.color, 0.22)};color:${t.color};border-color:${t.color}` : '';
+    return `<button type="button" class="tag-chip${on ? ' on' : ''}" style="${style}" data-tag="${escHtml(t.name)}" onclick="toggleTagChip(this.dataset.tag)">${escHtml(t.name)}</button>`;
+  }).join('');
+}
+function toggleTagChip(name) {
+  if (selectedFormTags.has(name)) selectedFormTags.delete(name);
+  else                            selectedFormTags.add(name);
+  renderTagChips();
+}
+
+// ── Settings: Tags manager ────────────────────────────────────
+function renderTagsManager() {
+  const cont = document.getElementById('tags-manager-list');
+  if (!cont) return;
+  const sort = document.getElementById('tags-sort')?.value || 'alpha';
+  const list = [...availableTags];
+  if (sort === 'count') list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  else                  list.sort((a, b) => a.name.localeCompare(b.name));
+
+  if (!list.length) {
+    cont.innerHTML = `<div style="font-size:12px;color:var(--text-dim);padding:6px 0">Nenhuma tag criada ainda. Use o campo acima para criar.</div>`;
+    return;
+  }
+  cont.innerHTML = list.map(t => `
+    <div class="tag-row" data-tag="${escHtml(t.name)}">
+      <input type="color" class="tag-row-color" value="${t.color}" title="Cor" onchange="updateTagColor(this.closest('.tag-row').dataset.tag, this.value)">
+      <input type="text" class="form-input tag-row-name" value="${escHtml(t.name)}" maxlength="24" data-orig="${escHtml(t.name)}" onkeydown="if(event.key==='Enter')this.blur()" onblur="renameTag(this)">
+      <span class="tag-row-count">${t.count} conta${t.count !== 1 ? 's' : ''}</span>
+      <button class="btn-icon btn-icon-danger" title="Excluir tag" onclick="deleteTag(this.closest('.tag-row').dataset.tag)">🗑️</button>
+    </div>`).join('');
+}
+
+async function createTag() {
+  const nameEl  = document.getElementById('new-tag-name');
+  const colorEl = document.getElementById('new-tag-color');
+  const name = (nameEl?.value || '').trim();
+  if (!name) { showToast('Informe um nome para a tag.', 'warning'); return; }
+  const res = await api.tags.create(name, colorEl?.value || '#6b6b88');
+  if (!res.success) { showToast(res.error || 'Erro ao criar tag.', 'error'); return; }
+  nameEl.value = '';
+  showToast(`Tag "${name}" criada!`, 'success');
+  await loadTags();
+  renderTagsManager();
+}
+
+async function updateTagColor(name, color) {
+  const res = await api.tags.update(name, name, color);
+  if (!res.success) { showToast(res.error || 'Erro ao atualizar cor.', 'error'); return; }
+  await loadTags();
+  renderTagsManager();
+  filterAccounts();   // re-render dashboard badges with the new color
+}
+
+async function renameTag(input) {
+  const orig = input.dataset.orig;
+  const next = (input.value || '').trim();
+  if (!next || next === orig) { input.value = orig; return; }
+  const res = await api.tags.update(orig, next);   // color unchanged
+  if (!res.success) { showToast(res.error || 'Erro ao renomear.', 'error'); input.value = orig; return; }
+  showToast('Tag renomeada.', 'success');
+  await loadTags();
+  renderTagsManager();
+  filterAccounts();
+}
+
+function deleteTag(name) {
+  confirmAction('🗑️ Excluir Tag',
+    `Tem certeza que deseja excluir a tag "${name}"? As contas que a usam NÃO serão removidas — apenas perderão essa tag.`,
+    async () => {
+      const res = await api.tags.delete(name);
+      if (!res.success) { showToast(res.error || 'Erro ao excluir tag.', 'error'); return; }
+      showToast(`Tag "${name}" excluída.`, 'info');
+      await loadTags();
+      renderTagsManager();
+      filterAccounts();
+    });
+}
+
 // ── Add / Edit Modal ──────────────────────────────────────────
 function openAddModal() {
   document.getElementById('modal-title').textContent     = 'Adicionar Conta';
@@ -449,7 +564,9 @@ function openAddModal() {
   document.getElementById('f-login').value               = '';
   document.getElementById('f-password').value            = '';
   document.getElementById('f-server').value              = 'BR1';
-  document.getElementById('f-tags').value                = '';
+  selectedFormTags = new Set();
+  const tsearch = document.getElementById('f-tags-search'); if (tsearch) tsearch.value = '';
+  renderTagChips();
   document.getElementById('f-notes').value               = '';
   document.getElementById('f-puuid').value               = '';
   document.getElementById('f-login').disabled            = false;
@@ -475,7 +592,9 @@ async function openEditModal(id) {
   document.getElementById('f-nickname').value         = a.nickname;
   document.getElementById('f-tag').value              = a.tag;
   document.getElementById('f-server').value           = a.server;
-  document.getElementById('f-tags').value             = a.tags?.[0] || '';
+  selectedFormTags = new Set(a.tags || []);
+  const tsearch = document.getElementById('f-tags-search'); if (tsearch) tsearch.value = '';
+  renderTagChips();
   document.getElementById('f-notes').value            = a.notes || '';
   document.getElementById('f-puuid').value            = a.puuid || '';
 
@@ -519,7 +638,7 @@ async function saveAccount() {
     const login    = document.getElementById('f-login').value.trim();
     const password = document.getElementById('f-password').value;          // don't trim passwords
     const server   = document.getElementById('f-server').value;
-    const tagVal   = document.getElementById('f-tags').value;
+    const tags     = [...selectedFormTags];
     const notes    = document.getElementById('f-notes').value.trim();
     const isWatch  = document.getElementById('f-watch-mode')?.checked ?? false;
     const puuidInput = document.getElementById('f-puuid')?.value?.trim() || null;
@@ -531,7 +650,7 @@ async function saveAccount() {
 
     if (id) {
       // ── EDIT ────────────────────────────────────────────────
-      const u = { nickname, tag, server, tags: tagVal ? [tagVal] : [], notes };
+      const u = { nickname, tag, server, tags, notes };
       if (puuidInput) u.puuid = puuidInput;
       // Only send credentials if the user actually typed something (blank = keep existing)
       if (login)    u.login    = login;
@@ -550,7 +669,7 @@ async function saveAccount() {
         showToast('Login e senha são obrigatórios (ou ative "Monitorar sem credenciais").', 'warning');
         return;
       }
-      const payload = { nickname, tag, server, tags: tagVal ? [tagVal] : [], notes, puuid: puuidInput };
+      const payload = { nickname, tag, server, tags, notes, puuid: puuidInput };
       if (isWatch) {
         payload.accountType = 'watched';
       } else {
@@ -568,6 +687,7 @@ async function saveAccount() {
 
     closeModal();
     await loadAccounts();
+    await loadTags();   // tag counts may have changed
   } catch (err) {
     console.error('[saveAccount] erro inesperado:', err);
     showToast('Erro inesperado ao salvar. Verifique o console.', 'error', 5000);
@@ -612,28 +732,37 @@ async function lookupPuuid() {
   if (btn) { btn.disabled = false; btn.textContent = '🔍 Buscar'; }
 }
 
-function confirmDelete(id, name) {
-  const text = document.getElementById('confirm-delete-text');
-  const btn  = document.getElementById('confirm-delete-ok');
-  if (!text || !btn) return;
-  text.textContent = `Deseja remover a conta "${name}"?`;
-  // Replace the confirm button to avoid stacking old listeners
+// Generic confirmation using the shared confirm modal (avoids window.confirm
+// which steals window focus). Replaces the OK button to clear old listeners.
+function confirmAction(title, text, onConfirm) {
+  const titleEl = document.getElementById('confirm-delete-title');
+  const textEl  = document.getElementById('confirm-delete-text');
+  const btn     = document.getElementById('confirm-delete-ok');
+  if (!textEl || !btn) return;
+  if (titleEl) titleEl.textContent = title;
+  textEl.textContent = text;
   const fresh = btn.cloneNode(true);
   btn.parentNode.replaceChild(fresh, btn);
   fresh.addEventListener('click', async () => {
     closeModalById('confirm-delete-modal');
+    await onConfirm();
+  });
+  openModal('confirm-delete-modal');
+}
+
+function confirmDelete(id, name) {
+  confirmAction('🗑️ Remover Conta', `Deseja remover a conta "${name}"?`, async () => {
     const res = await api.accounts.delete(id);
     if (res.success) {
-      // Remove from compare selection so Set doesn't hold stale IDs
       selectedForCompare.delete(id);
       updateCompareBar();
       showToast('Conta removida.', 'info');
       await loadAccounts();
+      await loadTags();   // tag counts may have changed
     } else {
       showToast(res.error || 'Erro ao remover.', 'error');
     }
   });
-  openModal('confirm-delete-modal');
 }
 
 // ── Refresh ───────────────────────────────────────────────────
@@ -889,6 +1018,9 @@ async function loadSettingsUI() {
   // Startup toggle — read directly from OS registry via main process
   const startup = await api.startup.get();
   el('startup-toggle').checked = startup.openAtLogin;
+  // Tags manager
+  await loadTags();
+  renderTagsManager();
 }
 
 async function saveStartupSetting(value) {

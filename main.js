@@ -209,8 +209,62 @@ const DEFAULT_DATA = () => ({
     closeAction: 'ask',
     notifications: { rankUp: true, rankDown: true, promo: true, apiKeyExpiring: true },
   },
+  // User-defined account tags { name, color }. Seeded with two sensible defaults
+  // for fresh installs; existing tags on accounts are migrated in migrateTags().
+  tags: [
+    { name: 'Main',  color: '#e63946' },
+    { name: 'Smurf', color: '#3b82f6' },
+  ],
   accounts: [],
 });
+
+// ── Tag system ───────────────────────────────────────────────
+// Colors for legacy hardcoded tags so migration preserves their look.
+const LEGACY_TAG_COLORS = {
+  main: '#e63946', smurf: '#3b82f6', treino: '#a855f7', duo: '#22c55e',
+  amigo: '#f59e0b', inativa: '#6b6b88', vigiando: '#06b6d4',
+};
+const TAG_PALETTE = ['#e63946','#3b82f6','#a855f7','#22c55e','#f59e0b','#06b6d4','#ec4899','#14b8a6','#f97316','#8b5cf6'];
+
+// Ensures data.tags exists and contains every tag name currently used by any
+// account (so old/hardcoded tags like Treino/Duo don't break — they become real
+// user tags). Returns true if it changed anything.
+function migrateTags(data) {
+  if (!Array.isArray(data.tags)) {
+    data.tags = [
+      { name: 'Main',  color: '#e63946' },
+      { name: 'Smurf', color: '#3b82f6' },
+    ];
+  }
+  const have = new Set(data.tags.map(t => t.name.toLowerCase()));
+  let changed = false;
+  let pi = data.tags.length;
+  for (const a of data.accounts || []) {
+    for (const name of (a.tags || [])) {
+      if (!name) continue;
+      const key = String(name).toLowerCase();
+      if (!have.has(key)) {
+        have.add(key);
+        const color = LEGACY_TAG_COLORS[key] || TAG_PALETTE[pi++ % TAG_PALETTE.length];
+        data.tags.push({ name: String(name), color });
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
+// Count how many accounts use each tag (case-insensitive by name)
+function tagsWithCounts(data) {
+  const counts = {};
+  for (const a of data.accounts || []) {
+    for (const name of (a.tags || [])) {
+      const k = String(name).toLowerCase();
+      counts[k] = (counts[k] || 0) + 1;
+    }
+  }
+  return (data.tags || []).map(t => ({ name: t.name, color: t.color, count: counts[t.name.toLowerCase()] || 0 }));
+}
 
 // In-memory data cache — eliminates a synchronous disk read on every readData()
 // call (previously ~200 reads per 50-account refresh cycle).
@@ -1490,6 +1544,57 @@ ipcMain.handle('settings:set', async (_, {key, value}) => {
   return { success: true };
 });
 
+// — Tags —
+ipcMain.handle('tags:getAll', () => tagsWithCounts(readData()));
+
+ipcMain.handle('tags:create', (_, { name, color }) => {
+  const clean = String(name || '').trim();
+  if (!clean) return { success: false, error: 'Informe um nome para a tag.' };
+  const data = readData();
+  if (!Array.isArray(data.tags)) data.tags = [];
+  if (data.tags.some(t => t.name.toLowerCase() === clean.toLowerCase()))
+    return { success: false, error: `A tag "${clean}" já existe.` };
+  data.tags.push({ name: clean, color: color || '#6b6b88' });
+  writeData(data);
+  return { success: true };
+});
+
+ipcMain.handle('tags:update', (_, { oldName, newName, color }) => {
+  const data = readData();
+  const tag  = (data.tags || []).find(t => t.name.toLowerCase() === String(oldName).toLowerCase());
+  if (!tag) return { success: false, error: 'Tag não encontrada.' };
+  const clean = String(newName || '').trim();
+  if (!clean) return { success: false, error: 'O nome não pode ficar vazio.' };
+  // Block renaming onto another existing tag
+  if (clean.toLowerCase() !== tag.name.toLowerCase() &&
+      data.tags.some(t => t.name.toLowerCase() === clean.toLowerCase()))
+    return { success: false, error: `Já existe uma tag "${clean}".` };
+  const prev = tag.name;
+  tag.name  = clean;
+  tag.color = color || tag.color;
+  // Reflect the rename in every account that uses it
+  if (prev !== clean) {
+    for (const a of data.accounts || []) {
+      if (Array.isArray(a.tags)) a.tags = a.tags.map(n => (String(n).toLowerCase() === prev.toLowerCase() ? clean : n));
+    }
+  }
+  writeData(data);
+  return { success: true };
+});
+
+ipcMain.handle('tags:delete', (_, { name }) => {
+  const data = readData();
+  const before = (data.tags || []).length;
+  data.tags = (data.tags || []).filter(t => t.name.toLowerCase() !== String(name).toLowerCase());
+  if (data.tags.length === before) return { success: false, error: 'Tag não encontrada.' };
+  // Remove the association from every account (accounts are NOT deleted)
+  for (const a of data.accounts || []) {
+    if (Array.isArray(a.tags)) a.tags = a.tags.filter(n => String(n).toLowerCase() !== String(name).toLowerCase());
+  }
+  writeData(data);
+  return { success: true };
+});
+
 // — Clipboard —
 ipcMain.handle('clipboard:copy', async (_, { id, field }) => {
   if (!isLoggedIn) return { success: false };
@@ -1710,6 +1815,8 @@ app.whenReady().then(() => {
   const _d = readData();
   loginAttempts = _d.loginAttempts || 0;
   lockoutUntil  = _d.lockoutUntil  || 0;
+  // Migrate any legacy/hardcoded account tags into the user tag list
+  if (migrateTags(_d)) writeData(_d);
   globalShortcut.register('CommandOrControl+Shift+L', () => { mainWindow?.show(); mainWindow?.focus(); });
   setupTray();
   createLoginWindow();
