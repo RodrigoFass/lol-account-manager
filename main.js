@@ -152,6 +152,7 @@ let clipboardTimer = null;
 let isLoggedIn     = false;
 let DATA_PATH;
 const refreshingAccounts = new Set(); // IDs currently being refreshed — prevents race conditions
+let _spectatorBlocked    = false;     // set once a 403 proves the key can't use the spectator endpoint
 
 // ============================================================
 // CRYPTO HELPERS
@@ -285,6 +286,7 @@ function publicAccount(a) {
     puuid: a.puuid, summonerId: a.summonerId, profileIconId: a.profileIconId ?? null,
     currentRank: a.currentRank, flexRank: a.flexRank || null, champions: a.champions,
     history: a.history || [], flexHistory: a.flexHistory || [], lastUpdated: a.lastUpdated,
+    inGame: a.inGame || false,
     accountType: a.accountType || 'full',
   };
 }
@@ -801,6 +803,21 @@ async function refreshAccount(id) {
     } catch { /* icon is cosmetic — silently ignore failures */ }
   }
 
+  // Best-effort "in game" check — one extra call, lets the UI pulse the
+  // live-game button. Skipped permanently for the session once we see a 403
+  // (dev keys can't access the spectator endpoint), so we don't waste calls.
+  let inGame = false;
+  if (!_spectatorBlocked) {
+    try {
+      await riotRequest(
+        `https://${host}/lol/spectator/v5/active-games/by-summoner/${encodeURIComponent(puuid)}`, apiKey);
+      inGame = true;
+    } catch (e) {
+      if (e.status === 403) _spectatorBlocked = true;  // dev key — stop trying
+      // 404 = not in game; any other error → treat as not in game
+    }
+  }
+
   const now      = new Date().toISOString();
   const histEntry = { timestamp: now, tier: currentRank.tier, division: currentRank.division, lp: currentRank.lp };
 
@@ -816,6 +833,7 @@ async function refreshAccount(id) {
   liveAcct.profileIconId = profileIconId ?? liveAcct.profileIconId ?? null;
   liveAcct.currentRank  = currentRank;
   liveAcct.flexRank    = flexRank;
+  liveAcct.inGame      = inGame;
   liveAcct.lastUpdated = now;
   if (!liveAcct.history) liveAcct.history = [];
   // Only record a new entry when tier, division or LP actually changed — avoids
@@ -847,7 +865,7 @@ async function refreshAccount(id) {
 
   writeData(live);
 
-  push('rankUpdate', { accountId: id, rankData: currentRank, flexRankData: flexRank, profileIconId });
+  push('rankUpdate', { accountId: id, rankData: currentRank, flexRankData: flexRank, profileIconId, inGame });
 
   // Rank change notifications
   if (prevRank && currentRank.tier !== 'UNRANKED' && prevRank.tier !== 'UNRANKED') {

@@ -87,8 +87,8 @@ function loadQueueFilterPref() {
 }
 
 function setupEventListeners() {
-  api.on('rankUpdate', ({ accountId, rankData, flexRankData, profileIconId }) => {
-    updateAccountRow(accountId, rankData, flexRankData, profileIconId);
+  api.on('rankUpdate', ({ accountId, rankData, flexRankData, profileIconId, inGame }) => {
+    updateAccountRow(accountId, rankData, flexRankData, profileIconId, inGame);
     // Only rebuild the history dropdown when the user is actually on that section
     // (avoids 50 full DOM rebuilds per refresh cycle when section is not visible)
     if (currentSection === 'history') populateAccountSelects();
@@ -291,7 +291,7 @@ function buildRow(a, idx) {
     <td>
       <div class="table-actions">
         ${credBtns}
-        <button class="btn-icon" onclick="analyzeLiveGame('${a.id}',this)" title="Analisar Partida ao Vivo">🔴</button>
+        <button class="btn-icon${a.inGame ? ' ingame-pulse' : ''}" onclick="analyzeLiveGame('${a.id}',this)" title="${a.inGame ? '🔴 EM PARTIDA — Analisar agora!' : 'Analisar Partida ao Vivo'}">🔴</button>
         <button class="btn-icon" onclick="refreshOne('${a.id}',this)" title="Atualizar Rank">⟳</button>
         <button class="btn-icon" onclick="openEditModal('${a.id}')" title="Editar">✏️</button>
         <button class="btn-icon btn-icon-danger" onclick="confirmDelete('${a.id}','${escHtml(a.nickname)}')" title="Remover">🗑️</button>
@@ -345,7 +345,7 @@ function buildCard(a) {
     ${hasDecay ? `<span class="decay-badge" title="Risco de decay">⚠️ Decay</span>` : ''}
     <div class="card-actions">
       ${credBtns}
-      <button class="btn-icon" onclick="analyzeLiveGame('${a.id}',this)" title="Analisar Partida ao Vivo">🔴</button>
+      <button class="btn-icon${a.inGame ? ' ingame-pulse' : ''}" onclick="analyzeLiveGame('${a.id}',this)" title="${a.inGame ? '🔴 EM PARTIDA — Analisar agora!' : 'Analisar Partida ao Vivo'}">🔴</button>
       <button class="btn-icon" onclick="refreshOne('${a.id}',this)" title="Atualizar Rank">⟳</button>
       <button class="btn-icon" onclick="openEditModal('${a.id}')" title="Editar">✏️</button>
       <button class="btn-icon btn-icon-danger" onclick="confirmDelete('${a.id}','${escHtml(a.nickname)}')" title="Remover">🗑️</button>
@@ -353,12 +353,13 @@ function buildCard(a) {
   </div>`;
 }
 
-function updateAccountRow(accountId, rankData, flexRankData, profileIconId) {
+function updateAccountRow(accountId, rankData, flexRankData, profileIconId, inGame) {
   const idx = allAccounts.findIndex(a => a.id === accountId);
   if (idx === -1) return;
   allAccounts[idx].currentRank = rankData;
   if (flexRankData  !== undefined) allAccounts[idx].flexRank      = flexRankData;
   if (profileIconId != null)       allAccounts[idx].profileIconId = profileIconId;
+  if (inGame        !== undefined) allAccounts[idx].inGame        = inGame;
   allAccounts[idx].lastUpdated = new Date().toISOString();
 
   // Table view — drag delegation is on <tbody>, not on rows;
