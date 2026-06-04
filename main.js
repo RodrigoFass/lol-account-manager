@@ -295,11 +295,26 @@ function getAccounts() {
   return readData().accounts.map(publicAccount);
 }
 
+// Case-insensitive Riot ID duplicate check (nickname + tag + server).
+// excludeId lets edits skip the account being edited.
+function findDuplicateAccount(data, nickname, tag, server, excludeId = null) {
+  const n = String(nickname || '').trim().toLowerCase();
+  const t = String(tag || '').replace(/^#+/, '').trim().toLowerCase();
+  return data.accounts.find(a =>
+    a.id !== excludeId &&
+    String(a.nickname || '').trim().toLowerCase() === n &&
+    String(a.tag || '').trim().toLowerCase() === t &&
+    a.server === server);
+}
+
 function addAccount(d) {
   const data = readData();
-  const id = crypto.randomUUID();
   // Strip leading '#' from tag — e.g. "#BR1" → "BR1"  (Bug 1 fix)
   const tag = String(d.tag || '').replace(/^#+/, '').trim();
+  if (findDuplicateAccount(data, d.nickname, tag, d.server)) {
+    throw new Error(`Já existe uma conta "${d.nickname}#${tag}" neste servidor.`);
+  }
+  const id = crypto.randomUUID();
   const isWatched = d.accountType === 'watched';
   data.accounts.push({
     id, nickname: d.nickname, tag,
@@ -318,6 +333,14 @@ function updateAccount(id, u) {
   const data = readData();
   const a = data.accounts.find(x => x.id === id);
   if (!a) return false;
+  // Block editing into a Riot ID that already belongs to another account
+  const newNick   = u.nickname !== undefined ? u.nickname : a.nickname;
+  const newTag    = u.tag      !== undefined ? u.tag      : a.tag;
+  const newServer = u.server   !== undefined ? u.server   : a.server;
+  if (findDuplicateAccount(data, newNick, newTag, newServer, id)) {
+    const cleanTag = String(newTag || '').replace(/^#+/, '').trim();
+    throw new Error(`Já existe uma conta "${newNick}#${cleanTag}" neste servidor.`);
+  }
   const fields = ['nickname','tag','server','tags','notes','puuid','summonerId','profileIconId','currentRank','flexRank','champions','history','flexHistory','lastUpdated'];
   fields.forEach(f => {
     if (u[f] !== undefined) {
