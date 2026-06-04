@@ -1169,16 +1169,18 @@ tr.drag-over {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 10px 12px;
-  display: flex; flex-direction: column; gap: 8px;
+  padding: 7px 10px;
+  display: flex; flex-direction: row; align-items: center; gap: 10px;
+  justify-content: space-between;
   transition: border-color 0.15s;
 }
 .lg-player:hover { border-color: var(--border-light); }
-.lg-player-error { opacity: 0.7; }
+/* Error card stays vertical so the warning message sits below the identity */
+.lg-player-error { flex-direction: column; align-items: stretch; gap: 6px; opacity: 0.7; }
 
-.lg-player-top { display: flex; align-items: center; gap: 10px; }
+.lg-player-top { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
 .lg-champ {
-  width: 40px; height: 40px;
+  width: 36px; height: 36px;
   border-radius: var(--radius-sm);
   flex-shrink: 0;
   border: 1px solid var(--border-light);
@@ -1204,10 +1206,14 @@ tr.drag-over {
   background: var(--bg-card); border-radius: 3px; padding: 1px 5px;
 }
 
-/* Rank block — reuses the main app's rankCell() component for full consistency */
-.lg-rank-wrap { display: flex; flex-direction: column; gap: 4px; }
+/* Rank block — reuses the main app's rankCell() component for full consistency.
+   Sits to the RIGHT of the profile (compact, fixed-width column). */
+.lg-rank-wrap {
+  display: flex; flex-direction: column; gap: 2px;
+  flex-shrink: 0; width: 210px;
+}
 .lg-rank-label {
-  font-size: 9.5px; font-weight: 700;
+  font-size: 9px; font-weight: 700;
   color: var(--text-dim);
   text-transform: uppercase; letter-spacing: 0.5px;
   display: flex; align-items: center; gap: 6px;
