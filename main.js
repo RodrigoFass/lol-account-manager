@@ -371,52 +371,62 @@ function getCredentials(id) {
 }
 
 // ============================================================
-// RIOT API — Rate limiter
+// RIOT API — Concurrent rate limiter
 // ============================================================
+// Dispatches up to MAX_CONCURRENT requests in parallel while respecting Riot's
+// per-second (18) and per-2-minute (95) limits. The old version awaited each
+// fetch serially, so 30 calls = 30 × network RTT (~6s). Now they overlap, so
+// 30 calls finish in ~2-3 rounds (~1s).
 const queue = [];
-let processing = false, rps = 0, rpm = 0, rpsStart = Date.now(), rpmStart = Date.now();
-
-async function riotRequest(url, key) {
-  return new Promise((res, rej) => { queue.push({ url, key, res, rej }); processQueue(); });
-}
-
-async function processQueue() {
-  if (processing || !queue.length) return;
-  processing = true;
-  while (queue.length) {
-    const now = Date.now();
-    if (now - rpsStart >= 1000)  { rps = 0; rpsStart = now; }
-    if (now - rpmStart >= 120000) { rpm = 0; rpmStart = now; }
-    if (rps >= 18 || rpm >= 95) {
-      const wait = rps >= 18 ? 1000 - (now - rpsStart) + 100 : 120000 - (now - rpmStart) + 100;
-      await sleep(wait); continue;
-    }
-    const { url, key, res, rej } = queue.shift();
-    rps++; rpm++;
-    try {
-      const r = await netFetch(url, { headers: { 'X-Riot-Token': key } });
-      if (r.status === 429) {
-        const after = parseInt(r.headers.get('Retry-After') || '2', 10);
-        await sleep(after * 1000);
-        queue.unshift({ url, key, res, rej }); rps--; rpm--; continue;
-      }
-      if (!r.ok) {
-        const err = new Error(statusToMessage(r.status));
-        err.status = r.status;
-        rej(err);
-        continue;
-      }
-      res(await r.json());
-    } catch (e) {
-      // Network-level errors (no connection, DNS failure, etc.)
-      if (!e.status) e.message = `Erro de rede: ${e.message || 'sem conexão'}`;
-      rej(e);
-    }
-  }
-  processing = false;
-}
+let rps = 0, rpm = 0, rpsStart = Date.now(), rpmStart = Date.now();
+let inFlight = 0, pumping = false;
+const MAX_CONCURRENT = 12;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function riotRequest(url, key) {
+  return new Promise((res, rej) => { queue.push({ url, key, res, rej }); pumpQueue(); });
+}
+
+async function pumpQueue() {
+  if (pumping) return;
+  pumping = true;
+  while (queue.length) {
+    const now = Date.now();
+    if (now - rpsStart >= 1000)   { rps = 0; rpsStart = now; }
+    if (now - rpmStart >= 120000) { rpm = 0; rpmStart = now; }
+    if (inFlight >= MAX_CONCURRENT) { await sleep(15); continue; }
+    if (rps >= 18 || rpm >= 95) {
+      const wait = rps >= 18 ? (1000 - (now - rpsStart) + 30) : (120000 - (now - rpmStart) + 30);
+      await sleep(Math.max(wait, 15)); continue;
+    }
+    const item = queue.shift();
+    rps++; rpm++; inFlight++;
+    _dispatch(item);   // fire concurrently — do NOT await
+  }
+  pumping = false;
+}
+
+function _dispatch(item) {
+  const { url, key, res, rej } = item;
+  netFetch(url, { headers: { 'X-Riot-Token': key } })
+    .then(async r => {
+      if (r.status === 429) {
+        const after = parseInt(r.headers.get('Retry-After') || '2', 10);
+        rps = Math.max(0, rps - 1); rpm = Math.max(0, rpm - 1);   // refund
+        await sleep(after * 1000);
+        queue.unshift(item);                                      // retry same promise
+        return;
+      }
+      if (!r.ok) { const err = new Error(statusToMessage(r.status)); err.status = r.status; rej(err); return; }
+      res(await r.json());
+    })
+    .catch(e => {
+      if (!e.status) e.message = `Erro de rede: ${e.message || 'sem conexão'}`;
+      rej(e);
+    })
+    .finally(() => { inFlight--; pumpQueue(); });
+}
 
 async function getDDVersion() {
   if (ddVersion) return ddVersion;
@@ -481,35 +491,31 @@ async function enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid
   const saved = savedByPuuid[p.puuid];
   if (saved) { out.internalTags = saved.tags || []; out.internalNick = saved.nickname || null; }
 
-  // Ranked entries (solo + flex). In streamer/anonymous mode the participant's
-  // puuid is masked, so this call returns 400/404 — that's not an error, it just
-  // means the player chose to hide their identity.
-  let entries;
-  try {
-    entries = await riotRequest(
-      `https://${host}/lol/league/v4/entries/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey);
-  } catch (e) {
-    if (e.status === 400 || e.status === 404) {
-      out.anonymous = true;
-      out.riotId    = 'Anônimo';
-      return out;   // identity hidden — no rank/level available
-    }
-    throw e;        // genuine API error — let the caller mark this player as failed
+  // Rank (league) + level (summoner) are independent — fire BOTH in parallel
+  // instead of sequentially. Streamer/anonymous mode masks the puuid, so league
+  // returns 400/404 (not an error — the player hid their identity).
+  const [entriesR, summonerR] = await Promise.allSettled([
+    riotRequest(`https://${host}/lol/league/v4/entries/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey),
+    riotRequest(`https://${host}/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey),
+  ]);
+
+  if (entriesR.status === 'rejected') {
+    const st = entriesR.reason?.status;
+    if (st === 400 || st === 404) { out.anonymous = true; out.riotId = 'Anônimo'; return out; }
+    throw entriesR.reason;   // genuine API error — caller marks this player as failed
   }
+  const entries = entriesR.value || [];
   const solo = entries.find(e => e.queueType === 'RANKED_SOLO_5x5');
   const flex = entries.find(e => e.queueType === 'RANKED_FLEX_SR');
   if (solo) out.solo = { tier: solo.tier, division: solo.rank, lp: solo.leaguePoints, wins: solo.wins, losses: solo.losses, series: solo.miniSeries?.progress || null };
   if (flex) out.flex = { tier: flex.tier, division: flex.rank, lp: flex.leaguePoints, wins: flex.wins, losses: flex.losses, series: flex.miniSeries?.progress || null };
 
-  // Summoner level + profile icon (non-critical — best effort)
-  try {
-    const s = await riotRequest(
-      `https://${host}/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey);
-    out.level         = s.summonerLevel ?? null;
-    out.profileIconId = out.profileIconId ?? s.profileIconId ?? null;
-  } catch { /* level is cosmetic */ }
+  if (summonerR.status === 'fulfilled' && summonerR.value) {
+    out.level         = summonerR.value.summonerLevel ?? null;
+    out.profileIconId = out.profileIconId ?? summonerR.value.profileIconId ?? null;
+  }
 
-  // Riot ID fallback via ACCOUNT-V1 only when spectator didn't provide it
+  // Riot ID fallback via ACCOUNT-V1 only when spectator didn't provide it (rare)
   if (!out.riotId) {
     try {
       const acc = await riotRequest(
@@ -554,9 +560,11 @@ async function getLiveGame(id) {
   for (const a of readData().accounts) if (a.puuid) savedByPuuid[a.puuid] = a;
 
   // 2. Enrich all 10 participants concurrently — one failure never breaks the others
+  const _t0 = Date.now();
   const settled = await Promise.allSettled(
     game.participants.map(p => enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid, myTeamId))
   );
+  console.log(`[perf] live game: ${game.participants.length} jogadores carregados em ${Date.now() - _t0}ms`);
 
   const players = settled.map((r, i) => {
     if (r.status === 'fulfilled') return r.value;
@@ -606,10 +614,20 @@ function _topPosition(positions) {
   return POSITION_PT[best] || '';
 }
 
-async function getPlayerDetails(puuid, server) {
+// Public entry — serves from cache, dedupes concurrent in-flight requests for
+// the same puuid (e.g. hover-prefetch + click), then delegates to the loader.
+const _playerDetailsInflight = new Map();
+function getPlayerDetails(puuid, server) {
   const cached = _playerDetailsCache.get(puuid);
-  if (cached && Date.now() - cached.ts < PLAYER_DETAILS_TTL) return cached.data;
+  if (cached && Date.now() - cached.ts < PLAYER_DETAILS_TTL) return Promise.resolve(cached.data);
+  if (_playerDetailsInflight.has(puuid)) return _playerDetailsInflight.get(puuid);
+  const promise = _loadPlayerDetails(puuid, server).finally(() => _playerDetailsInflight.delete(puuid));
+  _playerDetailsInflight.set(puuid, promise);
+  return promise;
+}
 
+async function _loadPlayerDetails(puuid, server) {
+  const _t0 = Date.now();
   const apiKey = await getApiKey();
   if (!apiKey) throw new Error('API Key não configurada');
   const region   = REGIONAL_ROUTING[server] || 'americas';
@@ -699,6 +717,7 @@ async function getPlayerDetails(puuid, server) {
     profile, matchError,
   };
   _playerDetailsCache.set(puuid, { ts: Date.now(), data });
+  console.log(`[perf] player details ${puuid.slice(0, 8)}: ${recentMatches.length} partidas em ${Date.now() - _t0}ms`);
   return data;
 }
 

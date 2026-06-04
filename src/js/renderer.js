@@ -1362,7 +1362,7 @@ function buildPlayerCard(p) {
     : emptyRankCell('Sem Rank');
 
   return `
-  <div class="lg-player lg-clickable" onclick="openPlayerDetail('${p.puuid}')" title="Ver análise detalhada">
+  <div class="lg-player lg-clickable" onclick="openPlayerDetail('${p.puuid}')" onmouseenter="prefetchPlayerDetail('${p.puuid}')" onmouseleave="cancelPrefetch()" title="Ver análise detalhada">
     <div class="lg-player-top">
       ${champImg}
       <div class="lg-player-id">
@@ -1409,6 +1409,19 @@ function _detailRank(p) {
   if (mode === 'solo') return p.solo;
   return _bestRank(p);   // 'other'/accounts → best available
 }
+
+// Warm the cache on sustained hover (450ms) so the click feels instant.
+// Main-process in-flight dedup means hover + click never double-fetch.
+let _prefetchTimer = null;
+function prefetchPlayerDetail(puuid) {
+  clearTimeout(_prefetchTimer);
+  _prefetchTimer = setTimeout(() => {
+    const p = _liveGame?.players.find(x => x.puuid === puuid);
+    if (!p || p.anonymous) return;
+    api.riot.getPlayerDetails(puuid, _liveGame.server).catch(() => {});
+  }, 450);
+}
+function cancelPrefetch() { clearTimeout(_prefetchTimer); }
 
 // Entry from the LIVE GAME — player already has rank/level loaded
 async function openPlayerDetail(puuid) {
