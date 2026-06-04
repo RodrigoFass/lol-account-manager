@@ -217,13 +217,24 @@ function renderAccounts(accounts) {
   }
 }
 
+// "Sem Rank" cell that is BYTE-FOR-BYTE the same height as a ranked cell:
+// it renders both rows, but the bottom row (bar + V/D) is hidden via
+// visibility:hidden so it still reserves the exact same vertical space.
+function emptyRankCell(label = 'Sem Rank') {
+  return `<div class="rank-cell">
+    <div class="rank-cell-top"><span class="tier-badge tier-UNRANKED">${label}</span></div>
+    <div class="rank-cell-bottom" style="visibility:hidden">
+      <div class="winrate-track"></div><span class="rank-vd">0V 0D</span>
+    </div>
+  </div>`;
+}
+
 // Shared cell renderer — both Solo/Duo and Flex use this exact layout:
 //   Top row:  [Badge  LP]  ←— space-between —→  [XX%]
 //   Bottom row: [==progress bar==]  [XV YD]
 function rankCell(rank) {
   if (!rank || rank.tier === 'UNRANKED') {
-    // Wrapped in .rank-cell so it occupies the same height as a ranked cell
-    return `<div class="rank-cell rank-cell-empty"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>`;
+    return emptyRankCell('Sem Rank');
   }
   const wr = winrate(rank.wins, rank.losses);
   return `<div class="rank-cell">
@@ -1298,7 +1309,7 @@ function buildPlayerCard(p) {
       </div>
       <div class="lg-rank-wrap">
         <div class="lg-rank-label">Oculto</div>
-        <div class="rank-cell rank-cell-empty"><span class="tier-badge tier-UNRANKED">—</span></div>
+        ${emptyRankCell('—')}
       </div>
     </div>`;
   }
@@ -1332,7 +1343,7 @@ function buildPlayerCard(p) {
 
   const rankHtml = rank
     ? rankCell(rank)
-    : `<div class="rank-cell rank-cell-empty"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>`;
+    : emptyRankCell('Sem Rank');
 
   return `
   <div class="lg-player lg-clickable" onclick="openPlayerDetail('${p.puuid}')" title="Ver análise detalhada">
