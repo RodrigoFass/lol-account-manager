@@ -39,10 +39,11 @@ function setHistoryQueue(queue, btn) {
 }
 
 async function loadHistory() {
-  const sel       = document.getElementById('history-account-select');
-  const id        = sel?.value;
-  const emptyEl   = document.getElementById('history-empty');
-  const contentEl = document.getElementById('history-content');
+  const sel        = document.getElementById('history-account-select');
+  const id         = sel?.value;
+  const emptyEl    = document.getElementById('history-empty');
+  const contentEl  = document.getElementById('history-content');
+  const controlsEl = document.getElementById('history-controls');
 
   if (!id) {
     if (emptyEl) {
@@ -50,7 +51,8 @@ async function loadHistory() {
       emptyEl.querySelector('p').textContent  = 'Escolha uma conta para ver a evolução do elo ao longo do tempo.';
       emptyEl.style.display = 'flex';
     }
-    if (contentEl) contentEl.style.display = 'none';
+    if (contentEl)  contentEl.style.display  = 'none';
+    if (controlsEl) controlsEl.style.display = 'none';   // hide controls until an account is picked
     currentHistoryAccount = null;
     return;
   }
@@ -59,8 +61,9 @@ async function loadHistory() {
   if (!account) return;
   currentHistoryAccount = account;
 
-  if (emptyEl)   emptyEl.style.display   = 'none';
-  if (contentEl) contentEl.style.display = '';
+  if (controlsEl) controlsEl.style.display = 'flex';     // queue + range stay visible even on empty state
+  if (emptyEl)    emptyEl.style.display    = 'none';
+  if (contentEl)  contentEl.style.display  = '';
   renderHistoryChart(account);
 }
 

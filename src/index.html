@@ -172,11 +172,6 @@
       <section class="section" id="section-history">
         <div class="section-header">
           <h2>📈 Histórico de Elo</h2>
-          <!-- Queue toggle — lives in the header so it's always visible -->
-          <div class="chart-controls" style="margin:0">
-            <button class="chart-btn queue-btn active" onclick="setHistoryQueue('solo',this)">Solo / Duo</button>
-            <button class="chart-btn queue-btn" onclick="setHistoryQueue('flex',this)">Flex</button>
-          </div>
           <!-- Custom account selector (visual layer) -->
           <div class="account-select-wrapper" id="history-account-dropdown">
             <button class="account-select-btn" type="button" onclick="toggleAccountDropdown()" id="account-select-trigger">
@@ -191,6 +186,18 @@
           </select>
         </div>
         <div class="section-body">
+          <!-- Controls bar — queue + range together, always visible once an account is picked -->
+          <div id="history-controls" class="chart-controls-row" style="display:none;margin-bottom:16px">
+            <div class="chart-controls">
+              <button class="chart-btn queue-btn active" onclick="setHistoryQueue('solo',this)">Solo / Duo</button>
+              <button class="chart-btn queue-btn" onclick="setHistoryQueue('flex',this)">Flex</button>
+            </div>
+            <div class="chart-controls">
+              <button class="chart-btn range-btn active" onclick="setHistoryRange('week',this)">7 dias</button>
+              <button class="chart-btn range-btn" onclick="setHistoryRange('month',this)">30 dias</button>
+              <button class="chart-btn range-btn" onclick="setHistoryRange('all',this)">Tudo</button>
+            </div>
+          </div>
           <div id="history-empty" class="empty-state">
             <div class="empty-icon">📈</div>
             <h3>Selecione uma conta</h3>
@@ -201,12 +208,6 @@
             <!-- ── Summary stat cards ── -->
             <div id="history-summary" class="history-summary-row"></div>
 
-            <!-- ── Range controls ── -->
-            <div class="chart-controls" style="margin-bottom:12px">
-              <button class="chart-btn range-btn active" onclick="setHistoryRange('week',this)">7 dias</button>
-              <button class="chart-btn range-btn" onclick="setHistoryRange('month',this)">30 dias</button>
-              <button class="chart-btn range-btn" onclick="setHistoryRange('all',this)">Tudo</button>
-            </div>
             <div class="card" style="padding:16px;margin-bottom:24px">
               <div class="chart-container">
                 <canvas id="history-chart"></canvas>
