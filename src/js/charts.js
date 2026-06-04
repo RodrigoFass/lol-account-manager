@@ -342,6 +342,7 @@ function buildHistoryChart(account, data) {
     ds.pointBackgroundColor         = ptColors;
     ds.pointBorderColor             = ptBorder;
     ds.pointRadius                  = ptRadius;
+    ds.pointHoverRadius             = ptRadius;   // no grow/shrink on hover
     ds.pointBorderWidth             = ptBorderW;
     historyChart.options.scales.y.min = yMin;
     historyChart.options.scales.y.max = yMax;
@@ -378,7 +379,7 @@ function buildHistoryChart(account, data) {
         pointBorderColor:     ptBorder,
         pointBorderWidth:     ptBorderW,
         pointRadius:          ptRadius,
-        pointHoverRadius:     7,
+        pointHoverRadius:     ptRadius,
         tension:              0.3,
         fill:                 true,
       }],
