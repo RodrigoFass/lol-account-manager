@@ -222,7 +222,8 @@ function renderAccounts(accounts) {
 //   Bottom row: [==progress bar==]  [XV YD]
 function rankCell(rank) {
   if (!rank || rank.tier === 'UNRANKED') {
-    return `<span class="tier-badge tier-UNRANKED">Sem Rank</span>`;
+    // Wrapped in .rank-cell so it occupies the same height as a ranked cell
+    return `<div class="rank-cell rank-cell-empty"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>`;
   }
   const wr = winrate(rank.wins, rank.losses);
   return `<div class="rank-cell">

@@ -496,7 +496,9 @@ tr.drag-over {
 /* =============================================
    RANK CELL
    ============================================= */
-.rank-cell        { min-width: 168px; }
+.rank-cell        { min-width: 168px; min-height: 38px; }
+/* "Sem Rank" cell — centers the badge in the same height as a ranked cell */
+.rank-cell-empty  { display: flex; align-items: center; }
 .rank-cell-top    { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
 .rank-cell-left   { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .rank-cell-bottom { display: flex; align-items: center; gap: 6px; }
