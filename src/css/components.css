@@ -1240,6 +1240,18 @@ tr.drag-over {
 .lg-clickable { cursor: pointer; }
 .lg-clickable:hover { border-color: var(--accent-red); }
 
+/* Anonymous / streamer-mode player */
+.lg-anon { opacity: 0.78; }
+.lg-anon .lg-name { color: var(--text-secondary); }
+.lg-anon-tag {
+  font-size: 9px; font-weight: 700;
+  color: var(--info);
+  background: rgba(59,130,246,0.12);
+  border: 1px solid rgba(59,130,246,0.25);
+  border-radius: 99px; padding: 0 6px;
+  letter-spacing: 0.3px; text-transform: uppercase;
+}
+
 /* =============================================
    PLAYER DETAIL MODAL
    ============================================= */

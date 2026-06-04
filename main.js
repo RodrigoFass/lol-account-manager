@@ -448,6 +448,7 @@ async function enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid
     riotId:        p.riotId || null,
     solo: null, flex: null, level: null,
     internalTags: [], internalNick: null,
+    anonymous: false,
     error: null,
   };
 
@@ -455,9 +456,21 @@ async function enrichParticipant(p, host, region, apiKey, champMap, savedByPuuid
   const saved = savedByPuuid[p.puuid];
   if (saved) { out.internalTags = saved.tags || []; out.internalNick = saved.nickname || null; }
 
-  // Ranked entries (solo + flex)
-  const entries = await riotRequest(
-    `https://${host}/lol/league/v4/entries/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey);
+  // Ranked entries (solo + flex). In streamer/anonymous mode the participant's
+  // puuid is masked, so this call returns 400/404 — that's not an error, it just
+  // means the player chose to hide their identity.
+  let entries;
+  try {
+    entries = await riotRequest(
+      `https://${host}/lol/league/v4/entries/by-puuid/${encodeURIComponent(p.puuid)}`, apiKey);
+  } catch (e) {
+    if (e.status === 400 || e.status === 404) {
+      out.anonymous = true;
+      out.riotId    = 'Anônimo';
+      return out;   // identity hidden — no rank/level available
+    }
+    throw e;        // genuine API error — let the caller mark this player as failed
+  }
   const solo = entries.find(e => e.queueType === 'RANKED_SOLO_5x5');
   const flex = entries.find(e => e.queueType === 'RANKED_FLEX_SR');
   if (solo) out.solo = { tier: solo.tier, division: solo.rank, lp: solo.leaguePoints, wins: solo.wins, losses: solo.losses, series: solo.miniSeries?.progress || null };

@@ -1283,6 +1283,24 @@ function buildPlayerCard(p) {
   const selfBadge = (p.puuid === _liveGame.selfPuuid) ? '<span class="lg-self-badge" title="Esta é a sua conta">★</span>' : '';
   const internalTags = (p.internalTags || []).map(tagBadge).join('');
 
+  // Anonymous / streamer mode — identity hidden by the player, not an error
+  if (p.anonymous) {
+    return `
+    <div class="lg-player lg-anon">
+      <div class="lg-player-top">
+        ${champImg}
+        <div class="lg-player-id">
+          <div class="lg-name">🕵️ Anônimo <span class="lg-anon-tag">Modo Streamer</span></div>
+          <div class="lg-meta"><span class="lg-champname">${escHtml(p.championName)}</span></div>
+        </div>
+      </div>
+      <div class="lg-rank-wrap">
+        <div class="lg-rank-label">Oculto</div>
+        <span class="tier-badge tier-UNRANKED">—</span>
+      </div>
+    </div>`;
+  }
+
   // Error state — partial card
   if (p.error) {
     return `
@@ -1356,7 +1374,7 @@ function _profileIconUrl(id) {
 
 async function openPlayerDetail(puuid) {
   const p = _liveGame?.players.find(x => x.puuid === puuid);
-  if (!p) return;
+  if (!p || p.anonymous) return;   // anonymous players have nothing to fetch
   _detailPlayer = p; _detailData = null;
   openModal('player-detail-modal');
   _renderDetailHeader(p);                          // basic + ranked render instantly (already loaded)
