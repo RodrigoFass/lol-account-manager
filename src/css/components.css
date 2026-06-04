@@ -489,7 +489,7 @@ tr.drag-over {
 /* =============================================
    RANK CELL
    ============================================= */
-.rank-cell        { min-width: 220px; min-height: 38px; }
+.rank-cell        { min-width: 270px; min-height: 40px; }
 /* "Sem Rank" cell — centers the badge in the same height as a ranked cell */
 .rank-cell-empty  { display: flex; align-items: center; }
 .rank-cell-top    { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
@@ -1179,7 +1179,7 @@ tr.drag-over {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 7px 10px;
-  min-height: 70px;            /* keeps anon/unranked cards the same size as ranked ones */
+  min-height: 74px;            /* floors every card to the same height (ranked content ~71px) */
   display: flex; flex-direction: row; align-items: center; gap: 10px;
   justify-content: space-between;
   transition: border-color 0.15s;
@@ -1209,7 +1209,7 @@ tr.drag-over {
 }
 .lg-tag { font-size: 11px; font-weight: 400; color: var(--text-muted); }
 .lg-self-badge { color: var(--accent-gold); font-size: 13px; }
-.lg-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.lg-meta { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow: hidden; margin-top: 2px; }
 .lg-champname { font-size: 11px; color: var(--text-secondary); font-weight: 600; }
 .lg-level {
   font-size: 10px; font-weight: 700; color: var(--text-muted);
