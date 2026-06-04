@@ -292,7 +292,7 @@ function buildRow(a, idx) {
     <td>
       <div class="table-actions">
         ${credBtns}
-        <button class="btn-icon${a.inGame ? ' ingame' : ''}" onclick="analyzeLiveGame('${a.id}',this)" title="${a.inGame ? 'Em partida — Analisar agora' : 'Analisar Partida ao Vivo'}">🔴</button>
+        <button class="btn-icon" onclick="analyzeLiveGame('${a.id}',this)" title="${a.inGame ? 'Em partida — Analisar agora' : 'Analisar Partida ao Vivo'}">${a.inGame ? '🟢' : '🔴'}</button>
         <button class="btn-icon" onclick="refreshOne('${a.id}',this)" title="Atualizar Rank">⟳</button>
         <button class="btn-icon" onclick="openEditModal('${a.id}')" title="Editar">✏️</button>
         <button class="btn-icon btn-icon-danger" onclick="confirmDelete('${a.id}','${escHtml(a.nickname)}')" title="Remover">🗑️</button>
@@ -346,7 +346,7 @@ function buildCard(a) {
     ${hasDecay ? `<span class="decay-badge" title="Risco de decay">⚠️ Decay</span>` : ''}
     <div class="card-actions">
       ${credBtns}
-      <button class="btn-icon${a.inGame ? ' ingame' : ''}" onclick="analyzeLiveGame('${a.id}',this)" title="${a.inGame ? 'Em partida — Analisar agora' : 'Analisar Partida ao Vivo'}">🔴</button>
+      <button class="btn-icon" onclick="analyzeLiveGame('${a.id}',this)" title="${a.inGame ? 'Em partida — Analisar agora' : 'Analisar Partida ao Vivo'}">${a.inGame ? '🟢' : '🔴'}</button>
       <button class="btn-icon" onclick="refreshOne('${a.id}',this)" title="Atualizar Rank">⟳</button>
       <button class="btn-icon" onclick="openEditModal('${a.id}')" title="Editar">✏️</button>
       <button class="btn-icon btn-icon-danger" onclick="confirmDelete('${a.id}','${escHtml(a.nickname)}')" title="Remover">🗑️</button>

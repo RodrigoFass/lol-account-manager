@@ -91,13 +91,6 @@
 .btn-sm { padding: 5px 10px; font-size: 11.5px; }
 .btn-lg { padding: 10px 22px; font-size: 14px; }
 
-/* Subtle, static highlight when the account is currently in a match
-   (soft green = "live/online", no animation) */
-.btn-icon.ingame {
-  background: rgba(34,197,94,0.16);
-  box-shadow: inset 0 0 0 1.5px rgba(34,197,94,0.45);
-}
-.btn-icon.ingame:hover { background: rgba(34,197,94,0.26); }
 
 /* =============================================
    FORM ELEMENTS
@@ -1340,9 +1333,9 @@ tr.drag-over {
 .pd-champ-icon { width: 34px; height: 34px; border-radius: var(--radius-sm); flex-shrink: 0; background: var(--bg-input); border: 1px solid var(--border-light); }
 .pd-champ-info { flex: 1; min-width: 0; }
 .pd-champ-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-.pd-champ-meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 11px; color: var(--text-muted); }
-.pd-mastery { color: var(--text-dim); }
-.pd-kda-sm { color: var(--text-dim); }
+.pd-champ-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 11.5px; color: var(--text-secondary); }
+.pd-mastery { color: var(--text-muted); font-weight: 500; }
+.pd-kda-sm { color: var(--text-muted); }
 .pd-champ-tag { font-size: 9px; font-weight: 700; border-radius: 99px; padding: 0 6px; }
 .pd-champ-detail { padding: 0 8px 8px 52px; }
 .pd-champ-detail-inner { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); background: var(--bg-input); border-radius: var(--radius-sm); padding: 6px 10px; }
@@ -1362,8 +1355,8 @@ tr.drag-over {
 .pd-match-result { font-size: 11.5px; font-weight: 700; }
 .pd-match.pd-win .pd-match-result  { color: var(--success); }
 .pd-match.pd-loss .pd-match-result { color: var(--danger); }
-.pd-match-champ-name { font-size: 10.5px; color: var(--text-muted); }
+.pd-match-champ-name { font-size: 11px; color: var(--text-secondary); }
 .pd-match-kda { font-size: 12px; font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .pd-match-meta { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; flex-shrink: 0; }
-.pd-match-meta > span:first-child { font-size: 10.5px; color: var(--text-muted); }
-.pd-match-time { font-size: 9.5px; color: var(--text-dim); }
+.pd-match-meta > span:first-child { font-size: 11px; color: var(--text-muted); }
+.pd-match-time { font-size: 10px; color: var(--text-muted); }
