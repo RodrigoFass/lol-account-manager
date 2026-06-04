@@ -1204,21 +1204,25 @@ tr.drag-over {
   background: var(--bg-card); border-radius: 3px; padding: 1px 5px;
 }
 
-.lg-ranks { display: flex; flex-direction: column; gap: 5px; }
-.lg-rank-row {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  font-size: 11.5px;
+/* Rank block — reuses the main app's rankCell() component for full consistency */
+.lg-rank-wrap { display: flex; flex-direction: column; gap: 4px; }
+.lg-rank-label {
+  font-size: 9.5px; font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 6px;
 }
-.lg-rank-row.lg-flex { opacity: 0.85; }
-.lg-rank-row.lg-unranked { opacity: 0.6; }
-.lg-q { font-size: 9.5px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; width: 26px; }
-.lg-lp { font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.lg-vd { font-size: 10.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.lg-casual-tag {
+  font-size: 9px; font-weight: 700;
+  color: var(--warning);
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 99px; padding: 0 6px;
+  letter-spacing: 0.3px;
+}
+/* The reused rank-cell stretches to fill the player card width */
+.lg-player .rank-cell { min-width: 0; width: 100%; }
 .lg-error-msg { font-size: 11px; color: var(--warning); }
-
-/* Scale down tier badge inside live game cards */
-.lg-player .tier-badge { font-size: 10px; padding: 1px 6px; }
-.lg-player .tier-emblem { width: 12px; height: 14px; }
 
 /* Responsive — stack teams vertically on narrow widths */
 @media (max-width: 720px) {

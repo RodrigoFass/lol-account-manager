@@ -535,8 +535,16 @@ async function getLiveGame(id) {
     };
   });
 
+  // Queue mode drives which rank the UI shows:
+  //   420 = Ranked Solo/Duo → solo only | 440 = Ranked Flex → flex only
+  //   anything else (normal/ARAM/etc.) → best available, not ranked
+  const queueId   = game.gameQueueConfigId;
+  const queueMode = queueId === 420 ? 'solo' : queueId === 440 ? 'flex' : 'other';
+
   return {
-    queueName:  QUEUE_NAMES[game.gameQueueConfigId] ?? 'Partida',
+    queueName:  QUEUE_NAMES[queueId] ?? 'Partida',
+    queueId,
+    queueMode,
     gameLength: game.gameLength || 0,
     myTeamId,
     selfPuuid:  acct.puuid,

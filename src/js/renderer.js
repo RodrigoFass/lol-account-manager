@@ -1212,12 +1212,28 @@ function _eloScore(rank) {
   return tierToNumber(rank.tier, rank.division) + (rank.lp || 0);
 }
 
+// Best available rank — prefers the higher of solo/flex (used for non-ranked queues)
+function _bestRank(p) {
+  const s = _eloScore(p.solo), f = _eloScore(p.flex);
+  if (s < 0 && f < 0) return null;
+  return f > s ? p.flex : p.solo;
+}
+
+// The single rank shown for a player, based on the current match's queue mode.
+function _displayRank(p) {
+  const mode = _liveGame?.queueMode;
+  if (mode === 'solo') return p.solo;
+  if (mode === 'flex') return p.flex;
+  return _bestRank(p);   // 'other' → best available
+}
+
 function _sortPlayers(players) {
   const arr = [...players];
-  if (_liveSort === 'elo')     arr.sort((a, b) => _eloScore(b.solo) - _eloScore(a.solo));
-  else if (_liveSort === 'lp') arr.sort((a, b) => (b.solo?.lp || 0) - (a.solo?.lp || 0));
+  // Sorting always uses the rank actually displayed (queue-aware)
+  if (_liveSort === 'elo')     arr.sort((a, b) => _eloScore(_displayRank(b)) - _eloScore(_displayRank(a)));
+  else if (_liveSort === 'lp') arr.sort((a, b) => (_displayRank(b)?.lp || 0) - (_displayRank(a)?.lp || 0));
   else if (_liveSort === 'winrate') {
-    const wr = p => p.solo ? winrate(p.solo.wins, p.solo.losses) : -1;
+    const wr = p => { const r = _displayRank(p); return r ? winrate(r.wins, r.losses) : -1; };
     arr.sort((a, b) => wr(b) - wr(a));
   }
   return arr;
@@ -1278,27 +1294,21 @@ function buildPlayerCard(p) {
     </div>`;
   }
 
-  // Rank cells
-  const soloWr = p.solo ? winrate(p.solo.wins, p.solo.losses) : null;
-  const flexWr = p.flex ? winrate(p.flex.wins, p.flex.losses) : null;
+  // Show ONLY the rank relevant to this match's queue.
+  // rankCell() is the exact same component used in the main table/cards —
+  // it includes the tier badge, LP, win-rate chip AND the win-rate bar,
+  // so the visual identity is identical across the whole app.
+  const mode  = _liveGame.queueMode;          // 'solo' | 'flex' | 'other'
+  const rank  = _displayRank(p);
+  const isOther = mode === 'other';
+  const qLabel  = mode === 'flex' ? 'Flex'
+                : mode === 'solo' ? 'Solo / Duo'
+                : (rank === p.flex && p.flex ? 'Flex (melhor elo)' : 'Solo / Duo');
+  const casualTag = isOther ? '<span class="lg-casual-tag" title="Partida não ranqueada — exibindo o melhor elo disponível">Casual</span>' : '';
 
-  const soloBlock = p.solo
-    ? `<div class="lg-rank-row">
-         ${rankBadge(p.solo)}
-         <span class="lg-lp">${p.solo.lp} LP</span>
-         ${wrChip(soloWr)}
-         <span class="lg-vd">${p.solo.wins}V ${p.solo.losses}D</span>
-       </div>`
-    : `<div class="lg-rank-row lg-unranked"><span class="tier-badge tier-UNRANKED">Sem Rank</span></div>`;
-
-  const flexBlock = p.flex
-    ? `<div class="lg-rank-row lg-flex">
-         <span class="lg-q">Flex</span>
-         ${rankBadge(p.flex)}
-         <span class="lg-lp">${p.flex.lp} LP</span>
-         ${wrChip(flexWr)}
-       </div>`
-    : '';
+  const rankHtml = rank
+    ? rankCell(rank)
+    : `<span class="tier-badge tier-UNRANKED">Sem Rank</span>`;
 
   return `
   <div class="lg-player">
@@ -1313,9 +1323,9 @@ function buildPlayerCard(p) {
         </div>
       </div>
     </div>
-    <div class="lg-ranks">
-      ${soloBlock}
-      ${flexBlock}
+    <div class="lg-rank-wrap">
+      <div class="lg-rank-label">${qLabel}${casualTag}</div>
+      ${rankHtml}
     </div>
   </div>`;
 }
