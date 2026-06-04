@@ -539,6 +539,7 @@ async function renameTag(input) {
   showToast('Tag renomeada.', 'success');
   await loadTags();
   renderTagsManager();
+  await loadAccounts();   // account.tags changed on disk — refresh in-memory copy
   filterAccounts();
 }
 
@@ -551,6 +552,7 @@ function deleteTag(name) {
       showToast(`Tag "${name}" excluída.`, 'info');
       await loadTags();
       renderTagsManager();
+      await loadAccounts();   // tag removed from accounts on disk — refresh in-memory copy
       filterAccounts();
     });
 }
