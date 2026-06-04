@@ -499,7 +499,7 @@ tr.drag-over {
 
 
 /* LP value */
-.lp-value       { font-weight: 700; font-size: 12.5px; }
+.lp-value       { font-weight: 700; font-size: 12.5px; white-space: nowrap; }
 .lp-value span  { color: var(--text-muted); font-weight: 400; font-size: 10.5px; }
 
 /* =============================================
@@ -1220,7 +1220,7 @@ tr.drag-over {
    Sits to the RIGHT of the profile (compact, fixed-width column). */
 .lg-rank-wrap {
   display: flex; flex-direction: column; gap: 2px;
-  flex-shrink: 0; width: 210px;
+  flex-shrink: 0; width: 250px;          /* fits 4-digit LP (e.g. 1209 LP) on one line */
 }
 .lg-rank-label {
   font-size: 9px; font-weight: 700;
