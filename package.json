@@ -1,6 +1,6 @@
 {
   "name": "lol-account-manager",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "Gerencie suas contas de League of Legends com segurança",
   "main": "main.js",
   "scripts": {

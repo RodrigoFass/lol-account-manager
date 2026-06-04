@@ -66,6 +66,11 @@ function setupUpdater(pushFn) {
     log('erro:', msg);
     // Dev-mode noise (no dev-app-update.yml) — not a real error to surface
     if (msg.includes('dev-app-update') || msg.includes('ENOENT')) return;
+    // No GitHub Releases published yet → nothing newer exists, so treat as up to date
+    if (/no published versions|latest\.yml/i.test(msg) || /404/.test(msg)) {
+      _push?.('update:status', { status: 'upToDate', currentVersion: app.getVersion(), noRelease: true });
+      return;
+    }
     _push?.('update:status', { status: 'error', error: msg, kind: classifyError(msg) });
   });
 }

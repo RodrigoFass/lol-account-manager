@@ -163,7 +163,7 @@ function _setUpdateLastCheck() {
   if (el) el.textContent = 'agora';
 }
 
-function handleUpdateStatus({ status, version, currentVersion, releaseDate, releaseNotes, error, kind }) {
+function handleUpdateStatus({ status, version, currentVersion, releaseDate, releaseNotes, error, kind, noRelease }) {
   const $ = id => document.getElementById(id);
   const title   = $('update-status-title');
   const text    = $('update-status-text');
@@ -188,7 +188,9 @@ function handleUpdateStatus({ status, version, currentVersion, releaseDate, rele
     case 'upToDate':
       _setUpdateLastCheck(); resetBtn();
       if (title) title.textContent = '✅ Aplicativo atualizado';
-      text.textContent = 'Você já está utilizando a versão mais recente.';
+      text.textContent = noRelease
+        ? 'Você está na versão mais recente (nenhuma versão mais nova publicada).'
+        : 'Você já está utilizando a versão mais recente.';
       if (availRow) availRow.style.display = 'none';
       if (progRow)  progRow.style.display  = 'none';
       if (instRow)  instRow.style.display  = 'none';
