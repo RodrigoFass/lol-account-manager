@@ -44,6 +44,7 @@
   "publish": {
     "provider": "github",
     "owner": "RodrigoFass",
-    "repo": "lol-account-manager"
+    "repo": "lol-account-manager",
+    "releaseType": "release"
   }
 }

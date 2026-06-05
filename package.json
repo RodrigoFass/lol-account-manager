@@ -1,6 +1,6 @@
 {
   "name": "lol-account-manager",
-  "version": "1.8.8",
+  "version": "1.8.9",
   "description": "Gerencie suas contas de League of Legends com segurança",
   "main": "main.js",
   "scripts": {
@@ -83,7 +83,8 @@
     "publish": {
       "provider": "github",
       "owner": "RodrigoFass",
-      "repo": "lol-account-manager"
+      "repo": "lol-account-manager",
+      "releaseType": "release"
     }
   },
   "author": "",
