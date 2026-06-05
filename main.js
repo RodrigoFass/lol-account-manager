@@ -150,6 +150,7 @@ let lockoutUntil   = 0;      // loaded from disk on startup — survives restart
 let refreshTimer   = null;
 let clipboardTimer = null;
 let isLoggedIn     = false;
+let isQuitting     = false;   // true once a real quit is in progress (tray "Sair", X→close, etc.)
 let DATA_PATH;
 const refreshingAccounts = new Set(); // IDs currently being refreshed — prevents race conditions
 let _spectatorBlocked    = false;     // set once a 403 proves the key can't use the spectator endpoint
@@ -1237,10 +1238,11 @@ function createMainWindow() {
   });
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.on('close', e => {
+    if (isQuitting) return;   // a real quit is in progress — let the window close
     const action = readData().settings?.closeAction || 'ask';
     if (action === 'tray')  { e.preventDefault(); mainWindow.hide(); }
     else if (action === 'ask') { e.preventDefault(); push('closeRequest', {}); }
-    else { app.quit(); }   // action === 'close': fully quit (destroys tray via before-quit)
+    else { isQuitting = true; app.quit(); }   // action === 'close': fully quit
   });
 }
 
@@ -1283,7 +1285,7 @@ function _buildTrayMenu() {
     { label: 'Atualizar Todos', click: () => { if (isLoggedIn) refreshAll(); } },
     { label: 'Configurações', click: () => { mainWindow?.show(); push('navigate', 'settings'); } },
     { type: 'separator' },
-    { label: 'Sair', click: () => app.quit() },
+    { label: 'Sair', click: () => { isQuitting = true; app.quit(); } },
   ]));
 }
 
@@ -1834,7 +1836,7 @@ ipcMain.handle('update:install',  () => { updater.installUpdate(); return { succ
 // — Window controls —
 ipcMain.handle('window:minimize', () => mainWindow?.minimize());
 ipcMain.handle('window:maximize', () => { mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize(); });
-ipcMain.handle('window:close',    () => app.quit());   // fully quit + destroy tray
+ipcMain.handle('window:close',    () => { isQuitting = true; app.quit(); });   // fully quit + destroy tray
 ipcMain.handle('window:hide',     () => mainWindow?.hide());
 ipcMain.handle('window:show',     () => { mainWindow?.show(); mainWindow?.focus(); });
 
@@ -1887,8 +1889,11 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;  // so the window 'close' handler doesn't cancel the quit
   flushWriteSync();   // persist any pending in-memory write before exiting
   globalShortcut.unregisterAll();
+  if (refreshTimer)   { clearInterval(refreshTimer);   refreshTimer = null; }
+  if (clipboardTimer) { clearTimeout(clipboardTimer);  clipboardTimer = null; }
   if (tray) { tray.destroy(); tray = null; }   // remove tray icon immediately on quit
 });
 app.on('window-all-closed', () => { /* Stay in tray */ });
