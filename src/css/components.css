@@ -46,7 +46,7 @@
 .btn-secondary:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: rgba(255,255,255,0.14);
+  border-color: var(--border-light);
 }
 
 .btn-ghost {
@@ -419,7 +419,7 @@ tr.drag-over {
   transition: background 0.1s;
 }
 .settings-row:last-child    { border-bottom: none; }
-.settings-row:hover         { background: rgba(255,255,255,0.015); }
+.settings-row:hover         { background: var(--bg-hover); }
 
 .settings-row-info           { flex: 1; }
 .settings-row-info strong    { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 2px; color: var(--text-primary); }

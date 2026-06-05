@@ -75,37 +75,51 @@
    LIGHT THEME
    ============================================= */
 body.theme-light {
-  --bg-primary:   #f4f4f7;
-  --bg-sidebar:   #ebebf0;
+  --bg-primary:   #f1f1f6;
+  --bg-sidebar:   #e7e7ee;
   --bg-card:      #ffffff;
-  --bg-input:     #f0f0f5;
-  --bg-hover:     #e8e8f0;
-  --bg-selected:  #dcdcec;
-  --bg-elevated:  #f8f8fb;
+  --bg-input:     #eeeef4;
+  --bg-hover:     #e6e6ef;
+  --bg-selected:  #d8d8ec;
+  --bg-elevated:  #ffffff;
 
-  --text-primary:   #18181e;
-  --text-secondary: #5a5a72;
-  --text-muted:     #8888a8;
-  --text-dim:       #c0c0d0;
+  --text-primary:   #16161c;
+  --text-secondary: #45455c;   /* darker → readable secondary text */
+  --text-muted:     #6a6a82;   /* was too light */
+  --text-dim:       #8c8ca2;   /* captions now legible on white */
 
-  --border:         rgba(0,0,0,0.08);
-  --border-light:   rgba(0,0,0,0.12);
+  --border:         rgba(0,0,0,0.11);
+  --border-light:   rgba(0,0,0,0.16);
 
-  --success: #16a34a;
-  --danger:  #dc2626;
-  --warning: #d97706;
+  --success: #15913f;
+  --danger:  #d12626;
+  --warning: #c2680a;
   --info:    #2563eb;
 
-  --shadow-xs: 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
-  --shadow:    0 4px 16px rgba(0,0,0,0.10);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.14);
-  --shadow-xl: 0 16px 48px rgba(0,0,0,0.16);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.07);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.10);
+  --shadow:    0 4px 16px rgba(0,0,0,0.12);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.16);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.18);
 }
 
-body.theme-light ::-webkit-scrollbar-thumb  { background: rgba(0,0,0,0.14); }
-body.theme-light .form-select option        { background: #ffffff; color: #18181e; }
-body.theme-light .data-table tbody tr:hover { background: rgba(0,0,0,0.03); }
+body.theme-light ::-webkit-scrollbar-thumb  { background: rgba(0,0,0,0.18); }
+body.theme-light .form-select option        { background: #ffffff; color: #16161c; }
+body.theme-light .data-table tbody tr:hover { background: #f1f1f8; }
+body.theme-light .data-table th             { background: #ebebf2; }
+
+/* Tier badges — darker, higher-contrast text for the pale tiers on white */
+body.theme-light .tier-IRON        { color:#555560; background:rgba(110,110,120,0.13); border-color:rgba(110,110,120,0.32); }
+body.theme-light .tier-BRONZE      { color:#8a4015; background:rgba(173,92,42,0.14);   border-color:rgba(173,92,42,0.32); }
+body.theme-light .tier-SILVER      { color:#5f5f70; background:rgba(120,120,140,0.14);  border-color:rgba(120,120,140,0.32); }
+body.theme-light .tier-GOLD        { color:#946f12; background:rgba(200,155,60,0.16);   border-color:rgba(200,155,60,0.38); }
+body.theme-light .tier-PLATINUM    { color:#007568; background:rgba(0,155,139,0.14);    border-color:rgba(0,155,139,0.32); }
+body.theme-light .tier-EMERALD     { color:#007a50; background:rgba(0,163,108,0.14);    border-color:rgba(0,163,108,0.32); }
+body.theme-light .tier-DIAMOND     { color:#3a4fb8; background:rgba(87,107,206,0.13);   border-color:rgba(87,107,206,0.32); }
+body.theme-light .tier-MASTER      { color:#7b2cc0; background:rgba(157,72,224,0.12);   border-color:rgba(157,72,224,0.32); }
+body.theme-light .tier-GRANDMASTER { color:#c5283f; background:rgba(232,64,87,0.12);    border-color:rgba(232,64,87,0.32); }
+body.theme-light .tier-CHALLENGER  { color:#9a6f0e; background:rgba(220,170,40,0.16);   border-color:rgba(220,170,40,0.4); }
+body.theme-light .tier-UNRANKED    { color:#70707e; background:rgba(110,110,130,0.12);  border-color:rgba(110,110,130,0.3); }
 
 /* =============================================
    RESET
