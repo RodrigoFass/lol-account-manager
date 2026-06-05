@@ -1250,13 +1250,10 @@ function createMainWindow() {
 // TRAY
 // ============================================================
 function setupTray() {
-  // The watcher build ships src/assets/icons/tray-watcher.png (eye icon).
-  // If that file is present we're running the watcher build; otherwise use
-  // tray.png or fall back to the generated red-circle (createAppIcon).
-  const watcherIcon = path.join(__dirname, 'src', 'assets', 'icons', 'tray-watcher.png');
-  const mainIcon    = path.join(__dirname, 'src', 'assets', 'icons', 'tray.png');
-  const iconPath    = fs.existsSync(watcherIcon) ? watcherIcon : mainIcon;
-  const icon        = fs.existsSync(iconPath) ? iconPath : createAppIcon();
+  // Single tray icon: the generated "L" (src/assets/icons/tray.png).
+  // Falls back to the in-code icon only if the file is missing.
+  const iconPath = path.join(__dirname, 'src', 'assets', 'icons', 'tray.png');
+  const icon     = fs.existsSync(iconPath) ? iconPath : createAppIcon();
   try { tray = new Tray(icon); } catch { tray = new Tray(nativeImage.createEmpty()); }
   tray.setToolTip('LoL Account Manager');
   tray.on('double-click', () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } });

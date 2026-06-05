@@ -131,9 +131,7 @@ npm run build:portable
 npm run release
 ```
 
-Os arquivos ficam em `dist/`. O ícone é gerado automaticamente por `scripts/generate-icon.js`.
-
-> **Build alternativa "watcher"** (`npm run build:watcher`) — mesma aplicação com ícone de olho, para distribuir a terceiros.
+Os arquivos ficam em `dist/`. O ícone (um "L" vermelho) é gerado automaticamente por `scripts/generate-icon.js`.
 
 ---
 
@@ -157,10 +155,9 @@ lol-account-manager/
 ├── preload.js           # Bridge segura main↔renderer (contextBridge)
 ├── updater.js           # Auto-update (electron-updater)
 ├── package.json
-├── electron-builder.watcher.json   # Config da build alternativa
 ├── scripts/
-│   ├── generate-icon.js            # Ícone padrão (espada)
-│   └── generate-icon-watcher.js    # Ícone alternativo (olho)
+│   ├── generate-icon.js            # Gera o ícone "L" (ico/png/tray)
+│   └── clean-dist.js               # Limpa a pasta dist/ antes de uma release
 └── src/
     ├── index.html       # Interface principal
     ├── login.html       # Login / setup de senha mestre
