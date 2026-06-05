@@ -56,8 +56,21 @@ async function loadLastRefresh() {
     if (ts) updateLastRefreshLabel(ts);
   } catch { /* no-op */ }
 }
-// Keep the relative-time label fresh without polling the main process
-setInterval(() => { if (currentSection === 'dashboard' && _lastRefreshTs) updateLastRefreshLabel(); }, 30000);
+// Recompute the "Última Atualização" cells from their stored timestamp so the
+// relative time advances (agora → 1min atrás → ...) instead of staying frozen.
+function refreshRelativeTimes() {
+  document.querySelectorAll('#accounts-tbody .time-ago-cell[data-ts]').forEach(td => {
+    const ts = td.dataset.ts;
+    td.textContent = ts ? timeAgo(ts) : '—';
+  });
+}
+
+// Keep the relative-time label and the per-account column fresh (no main-process polling)
+setInterval(() => {
+  if (currentSection !== 'dashboard') return;
+  if (_lastRefreshTs) updateLastRefreshLabel();
+  refreshRelativeTimes();
+}, 30000);
 
 function loadViewPref() {
   currentView = localStorage.getItem('pref_view') || 'table';
@@ -415,7 +428,7 @@ function buildRow(a, idx) {
     <td><span class="server-badge">${a.server}</span></td>
     <td>${rankCell(a.currentRank)}</td>
     <td>${rankCell(a.flexRank)}</td>
-    <td style="color:var(--text-muted);font-size:12px">${timeAgo(a.lastUpdated)}</td>
+    <td class="time-ago-cell" data-ts="${a.lastUpdated || ''}" style="color:var(--text-muted);font-size:12px">${timeAgo(a.lastUpdated)}</td>
     <td>
       <div class="table-actions">
         ${credBtns}
