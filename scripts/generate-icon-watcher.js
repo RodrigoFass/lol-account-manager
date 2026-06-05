@@ -56,7 +56,6 @@ function createPng(width, height, rgbaPixels) {
 // ── "L" icon drawing ──────────────────────────────────────────
 function drawLetterIcon(size) {
   const px = Buffer.alloc(size * size * 4);
-  const cx = size / 2, cy = size / 2;
   const sc = size / 256;
 
   // Alpha-composite src over existing pixel
@@ -73,12 +72,38 @@ function drawLetterIcon(size) {
     px[i + 3] = Math.round(oA * 255);
   }
 
-  // Rounded-rectangle fill (axis-aligned), anti-aliased corners
-  function fillRoundRect(x0, y0, w, h, rad, r, g, b) {
+  // Rounded-rectangle fill (axis-aligned), anti-aliased corners.
+  // baseA (0–255) scales the whole shape's opacity (for shadows/highlights).
+  function fillRoundRect(x0, y0, w, h, rad, r, g, b, baseA = 255) {
     const x1 = x0 + w, y1 = y0 + h;
     for (let y = Math.floor(y0); y < Math.ceil(y1); y++) {
       for (let x = Math.floor(x0); x < Math.ceil(x1); x++) {
         // distance into the rounded corners
+        let dx = 0, dy = 0;
+        if (x < x0 + rad)      dx = (x0 + rad) - x;
+        else if (x > x1 - rad) dx = x - (x1 - rad);
+        if (y < y0 + rad)      dy = (y0 + rad) - y;
+        else if (y > y1 - rad) dy = y - (y1 - rad);
+        let a = 255;
+        if (dx > 0 && dy > 0) {
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d > rad) continue;
+          if (d > rad - 1) a = Math.round(255 * (rad - d));
+        }
+        setPixel(x, y, r, g, b, Math.round(a * baseA / 255));
+      }
+    }
+  }
+
+  // Rounded-rectangle fill with a vertical color gradient (c0 top → c1 bottom).
+  function fillRoundRectV(x0, y0, w, h, rad, c0, c1) {
+    const x1 = x0 + w, y1 = y0 + h;
+    for (let y = Math.floor(y0); y < Math.ceil(y1); y++) {
+      const t = h <= 0 ? 0 : Math.min(1, Math.max(0, (y - y0) / h));
+      const r = Math.round(c0[0] + (c1[0] - c0[0]) * t);
+      const g = Math.round(c0[1] + (c1[1] - c0[1]) * t);
+      const b = Math.round(c0[2] + (c1[2] - c0[2]) * t);
+      for (let x = Math.floor(x0); x < Math.ceil(x1); x++) {
         let dx = 0, dy = 0;
         if (x < x0 + rad)      dx = (x0 + rad) - x;
         else if (x > x1 - rad) dx = x - (x1 - rad);
@@ -95,57 +120,25 @@ function drawLetterIcon(size) {
     }
   }
 
-  // ── 1. Dark navy gradient background circle ──────────────────
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = x - cx, dy = y - cy;
-      const d  = Math.sqrt(dx * dx + dy * dy);
-      const R  = size / 2;
-      if (d < R - 1) {
-        const t = d / R;
-        setPixel(x, y,
-          Math.round(10 + t * 20),
-          Math.round(10 + t * 15),
-          Math.round(26 + t * 40),
-          255);
-      } else if (d < R) {
-        setPixel(x, y, 10, 10, 26, Math.round((R - d) * 255));
-      }
-    }
-  }
+  // ── The letter "L" — large, centered, brand red, transparent bg ──
+  const stroke = Math.round(52 * sc);          // stroke thickness (bigger)
+  const top    = Math.round(34 * sc);
+  const bottom = Math.round(222 * sc);
+  const left   = Math.round(62 * sc);
+  const footW  = Math.round(132 * sc);
+  const rad    = Math.round(9 * sc);
 
-  // ── 2. Red outer ring — #C0392B ───────────────────────────────
-  const ringR = size / 2 - 2;
-  const ringW = size * 0.035;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const d = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
-      if (d >= ringR - ringW && d < ringR) {
-        const blend = Math.min(1, Math.min(d - (ringR - ringW), ringR - d));
-        setPixel(x, y, 192, 57, 43, Math.round(blend * 220));
-      }
-    }
-  }
+  // soft drop shadow for depth on light backgrounds (subtle)
+  const off = Math.round(5 * sc);
+  fillRoundRect(left + off, top + off, stroke, bottom - top, rad, 0, 0, 0, 55);            // stem shadow
+  fillRoundRect(left + off, bottom - stroke + off, footW, stroke, rad, 0, 0, 0, 55);       // foot shadow
 
-  // ── 3. The letter "L" (vertical stem + bottom foot) ──────────
-  const stroke = Math.round(34 * sc);          // stroke thickness
-  const top    = Math.round(70 * sc);
-  const bottom = Math.round(188 * sc);
-  const left   = Math.round(96 * sc);
-  const footW  = Math.round(82 * sc);
-  const rad    = Math.round(5 * sc);
+  // red L with a vertical gradient (lighter top → deeper brand red bottom)
+  fillRoundRectV(left, top, stroke, bottom - top, rad, [232, 72, 84], [192, 40, 48]);      // vertical stem
+  fillRoundRectV(left, bottom - stroke, footW, stroke, rad, [212, 56, 64], [188, 38, 46]); // bottom foot
 
-  // soft drop shadow for depth
-  const off = Math.round(3 * sc);
-  fillRoundRect(left + off, top + off, stroke, bottom - top, rad, 0, 0, 0); // stem shadow
-  fillRoundRect(left + off, bottom - stroke + off, footW, stroke, rad, 0, 0, 0); // foot shadow
-
-  // white letter
-  fillRoundRect(left, top, stroke, bottom - top, rad, 240, 240, 244);       // vertical stem
-  fillRoundRect(left, bottom - stroke, footW, stroke, rad, 240, 240, 244);  // bottom foot
-
-  // subtle red accent highlight on the stem's left edge
-  fillRoundRect(left, top, Math.round(5 * sc), bottom - top, 0, 230, 57, 70);
+  // subtle light highlight on the stem's left edge for a glossy finish
+  fillRoundRect(left, top, Math.round(8 * sc), bottom - top, rad, 255, 150, 158, 95);
 
   return px;
 }
