@@ -1,20 +1,23 @@
 {
   "name": "lol-account-manager",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Gerencie suas contas de League of Legends com segurança",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "clean": "node scripts/clean-dist.js",
     "generate-icon": "node scripts/generate-icon-watcher.js",
     "build": "node scripts/generate-icon-watcher.js && electron-builder --win",
     "build:installer": "node scripts/generate-icon-watcher.js && electron-builder --win --config.win.target=nsis",
     "build:portable": "node scripts/generate-icon-watcher.js && electron-builder --win --config.win.target=portable",
     "release": "node scripts/generate-icon-watcher.js && electron-builder --win --publish always",
+    "release:clean": "node scripts/clean-dist.js && node scripts/generate-icon-watcher.js && electron-builder --win --publish always",
     "generate-icon:watcher": "node scripts/generate-icon-watcher.js",
     "build:watcher": "node scripts/generate-icon-watcher.js && electron-builder --win --config electron-builder.watcher.json",
     "build:watcher:installer": "node scripts/generate-icon-watcher.js && electron-builder --win --config electron-builder.watcher.json --config.win.target=nsis",
     "build:watcher:portable": "node scripts/generate-icon-watcher.js && electron-builder --win --config electron-builder.watcher.json --config.win.target=portable",
-    "release:watcher": "node scripts/generate-icon-watcher.js && electron-builder --win --config electron-builder.watcher.json --publish always"
+    "release:watcher": "node scripts/generate-icon-watcher.js && electron-builder --win --config electron-builder.watcher.json --publish always",
+    "release:watcher:clean": "node scripts/clean-dist.js && node scripts/generate-icon-watcher.js && electron-builder --win --config electron-builder.watcher.json --publish always"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
