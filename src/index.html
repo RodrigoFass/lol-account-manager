@@ -26,7 +26,7 @@
     <aside class="sidebar">
       <div class="sidebar-logo">
         <h1>LoL <span>Account</span><br>Manager</h1>
-        <p id="app-version">v1.8.7</p>
+        <p id="app-version">v1.8.8</p>
       </div>
 
       <nav class="sidebar-nav">
@@ -268,7 +268,7 @@
       <section class="section" id="section-settings">
         <div class="section-header">
           <h2>⚙️ Configurações</h2>
-          <button class="btn btn-primary btn-sm" onclick="saveSettings()">💾 Salvar</button>
+          <span style="font-size:11px;color:var(--text-dim)">As alterações são salvas automaticamente</span>
         </div>
         <div class="section-body">
 
@@ -309,7 +309,7 @@
                 <strong>Intervalo de Atualização</strong>
                 <span>Com que frequência buscar o ranking das contas</span>
               </div>
-              <select class="form-select" id="refresh-interval" style="width:140px">
+              <select class="form-select" id="refresh-interval" style="width:140px" onchange="saveRefreshInterval(this.value)">
                 <option value="0">Manual</option>
                 <option value="5">5 minutos</option>
                 <option value="15" selected>15 minutos</option>
@@ -337,7 +337,7 @@
                 <strong>Ao Fechar a Janela</strong>
                 <span>O que fazer ao clicar no X</span>
               </div>
-              <select class="form-select" id="close-action" style="width:160px">
+              <select class="form-select" id="close-action" style="width:160px" onchange="saveCloseAction(this.value)">
                 <option value="ask">Perguntar sempre</option>
                 <option value="tray">Minimizar para bandeja</option>
                 <option value="close">Fechar o app</option>

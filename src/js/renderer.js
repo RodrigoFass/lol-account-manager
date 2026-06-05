@@ -1154,27 +1154,25 @@ async function saveStartupSetting(value) {
   );
 }
 
-async function saveSettings() {
+// Auto-save handlers — every setting persists instantly on change (no Save button).
+async function saveRefreshInterval(value) {
   try {
-    const el    = id => document.getElementById(id);
-    const theme = el('theme-select').value;
-    // Note: theme is already persisted immediately via changeTheme().
-    // Note: notifications are already persisted immediately via saveNotifSetting().
-    // saveSettings only needs to handle refreshInterval and closeAction here.
-    await api.settings.set('refreshInterval', parseInt(el('refresh-interval').value) || 15);
-    await api.settings.set('theme',           theme);
-    await api.settings.set('closeAction',     el('close-action').value);
-    await api.settings.set('notifications', {
-      rankUp:         el('notif-rankUp').checked,
-      rankDown:       el('notif-rankDown').checked,
-      promo:          el('notif-promo').checked,
-      apiKeyExpiring: el('notif-apiKeyExpiring').checked,
-    });
-    applyTheme(theme);
-    settingsCache = await api.settings.get(); // refresh local cache
-    showToast('Configurações salvas!', 'success');
+    const n = parseInt(value);
+    settingsCache.refreshInterval = isNaN(n) ? 15 : n;
+    await api.settings.set('refreshInterval', settingsCache.refreshInterval); // also reschedules timer in main
+    showToast('Intervalo de atualização salvo.', 'success', 2000);
   } catch (err) {
-    showToast('Erro ao salvar configurações: ' + (err.message || err), 'error');
+    showToast('Erro ao salvar intervalo: ' + (err.message || err), 'error');
+  }
+}
+
+async function saveCloseAction(value) {
+  try {
+    settingsCache.closeAction = value;
+    await api.settings.set('closeAction', value);
+    showToast('Preferência ao fechar salva.', 'success', 2000);
+  } catch (err) {
+    showToast('Erro ao salvar: ' + (err.message || err), 'error');
   }
 }
 
